@@ -17,6 +17,14 @@ export type MusicCommand =
   | { id: string; type: "volume"; value: number }
   | { id: string; type: "stop" }
 
+// Distributive Omit so each variant of MusicCommand keeps its own
+// fields. `Omit<A | B, K>` would collapse to common fields only.
+export type MusicCommandInput = MusicCommand extends infer C
+  ? C extends { id: string }
+    ? Omit<C, "id">
+    : never
+  : never
+
 export type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "ended" | "error"
 
 export interface MusicState {

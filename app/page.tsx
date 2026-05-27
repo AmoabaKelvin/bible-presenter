@@ -24,6 +24,7 @@ import {
   MUSIC_URL_KEY,
   MUSIC_VOLUME_KEY,
   type MusicCommand,
+  type MusicCommandInput,
   type MusicState,
   makeCommandId,
   parseYouTubeUrl,
@@ -174,7 +175,7 @@ export default function OperatorPage() {
   }, [])
 
   // Send a music command (the slideshow tab handles it)
-  const sendMusicCommand = (cmd: Omit<MusicCommand, "id">) => {
+  const sendMusicCommand = (cmd: MusicCommandInput) => {
     const full = { ...cmd, id: makeCommandId() } as MusicCommand
     localStorage.setItem(MUSIC_COMMAND_KEY, JSON.stringify(full))
   }
