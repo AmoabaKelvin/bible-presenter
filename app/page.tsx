@@ -17,6 +17,17 @@ import { MediaPane } from "@/components/operator/media-pane"
 import { RightRail } from "@/components/operator/right-rail"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
 import type { HistoryItem, MediaItem, Mode, VerseData } from "@/components/operator/types"
+import {
+  DEFAULT_MUSIC_STATE,
+  MUSIC_COMMAND_KEY,
+  MUSIC_STATE_KEY,
+  MUSIC_URL_KEY,
+  MUSIC_VOLUME_KEY,
+  type MusicCommand,
+  type MusicState,
+  makeCommandId,
+  parseYouTubeUrl,
+} from "@/lib/youtube-music"
 
 const HISTORY_KEY = "biblePresenterHistory"
 const VERSION_KEY = "bibleVersion"
@@ -62,6 +73,10 @@ export default function OperatorPage() {
   const [noteTitle, setNoteTitle] = useState("")
   const [noteText, setNoteText] = useState("")
 
+  // Music
+  const [musicUrl, setMusicUrl] = useState<string | null>(null)
+  const [musicState, setMusicState] = useState<MusicState>(DEFAULT_MUSIC_STATE)
+
   const previewContentRef = useRef<HTMLDivElement>(null)
 
   // ── Persistence: load ──────────────────────────────────────────────
@@ -81,6 +96,19 @@ export default function OperatorPage() {
       if (q) setQueue(JSON.parse(q))
       const qc = localStorage.getItem(QUEUE_CURSOR_KEY)
       if (qc !== null) setQueueCursor(parseInt(qc, 10))
+      const mu = localStorage.getItem(MUSIC_URL_KEY)
+      if (mu) setMusicUrl(mu)
+      const mv = localStorage.getItem(MUSIC_VOLUME_KEY)
+      const initialVolume = mv != null ? Number(mv) : DEFAULT_MUSIC_STATE.volume
+      setMusicState((s) => ({ ...s, volume: Number.isFinite(initialVolume) ? initialVolume : s.volume }))
+      const cachedState = localStorage.getItem(MUSIC_STATE_KEY)
+      if (cachedState) {
+        try {
+          setMusicState((s) => ({ ...s, ...JSON.parse(cachedState) }))
+        } catch {
+          // ignore
+        }
+      }
     } catch {
       // ignore corrupt local state
     }
@@ -108,6 +136,76 @@ export default function OperatorPage() {
   useEffect(() => {
     if (themeLoaded) localStorage.setItem(QUEUE_CURSOR_KEY, String(queueCursor))
   }, [queueCursor, themeLoaded])
+  useEffect(() => {
+    if (!themeLoaded) return
+    if (musicUrl) localStorage.setItem(MUSIC_URL_KEY, musicUrl)
+    else localStorage.removeItem(MUSIC_URL_KEY)
+  }, [musicUrl, themeLoaded])
+  useEffect(() => {
+    if (themeLoaded) localStorage.setItem(MUSIC_VOLUME_KEY, String(musicState.volume))
+  }, [musicState.volume, themeLoaded])
+
+  // Listen for music state pushed by the slideshow tab. We use both the
+  // cross-tab `storage` event and a 500ms poll as a belt-and-suspenders
+  // — storage events can be missed when the window is backgrounded.
+  useEffect(() => {
+    const apply = () => {
+      const raw = localStorage.getItem(MUSIC_STATE_KEY)
+      if (!raw) return
+      setMusicState((prev) => {
+        if (JSON.stringify(prev) === raw) return prev
+        try {
+          return JSON.parse(raw) as MusicState
+        } catch {
+          return prev
+        }
+      })
+    }
+    apply()
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === MUSIC_STATE_KEY) apply()
+    }
+    window.addEventListener("storage", onStorage)
+    const interval = setInterval(apply, 500)
+    return () => {
+      window.removeEventListener("storage", onStorage)
+      clearInterval(interval)
+    }
+  }, [])
+
+  // Send a music command (the slideshow tab handles it)
+  const sendMusicCommand = (cmd: Omit<MusicCommand, "id">) => {
+    const full = { ...cmd, id: makeCommandId() } as MusicCommand
+    localStorage.setItem(MUSIC_COMMAND_KEY, JSON.stringify(full))
+  }
+
+  const handleMusicLoad = (rawUrl: string) => {
+    const parsed = parseYouTubeUrl(rawUrl)
+    if (!parsed) return
+    setMusicUrl(rawUrl)
+    setMusicState((s) => ({ ...s, status: "loading", title: undefined, hasPlaylist: !!parsed.playlistId }))
+    sendMusicCommand({
+      type: "load",
+      url: rawUrl,
+      videoId: parsed.videoId,
+      playlistId: parsed.playlistId,
+      autoplay: true,
+    })
+  }
+
+  const handleMusicPlay = () => sendMusicCommand({ type: "play" })
+  const handleMusicPause = () => sendMusicCommand({ type: "pause" })
+  const handleMusicNext = () => sendMusicCommand({ type: "next" })
+  const handleMusicPrev = () => sendMusicCommand({ type: "prev" })
+  const handleMusicVolume = (v: number) => {
+    setMusicState((s) => ({ ...s, volume: v }))
+    sendMusicCommand({ type: "volume", value: v })
+  }
+  const handleMusicStop = () => {
+    setMusicUrl(null)
+    setMusicState((s) => ({ ...DEFAULT_MUSIC_STATE, volume: s.volume }))
+    sendMusicCommand({ type: "stop" })
+  }
 
   // ── Document title ─────────────────────────────────────────────────
   useEffect(() => {
@@ -619,6 +717,15 @@ export default function OperatorPage() {
         recent={history.slice(0, 12)}
         onSelectRecent={projectFromHistory}
         onClearRecent={clearHistory}
+        musicState={musicState}
+        musicUrl={musicUrl}
+        onMusicLoad={handleMusicLoad}
+        onMusicPlay={handleMusicPlay}
+        onMusicPause={handleMusicPause}
+        onMusicNext={handleMusicNext}
+        onMusicPrev={handleMusicPrev}
+        onMusicVolume={handleMusicVolume}
+        onMusicStop={handleMusicStop}
       />
 
       <main className="flex-1 min-w-0 h-full overflow-hidden">

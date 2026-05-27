@@ -4,7 +4,9 @@ import { Book, FileText, Image as ImageIcon, RotateCcw, BookMarked } from "lucid
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ThemeToggle } from "./theme-toggle"
+import { MusicBar } from "./music-bar"
 import type { Mode, HistoryItem } from "./types"
+import type { MusicState } from "@/lib/youtube-music"
 
 interface LeftRailProps {
   mode: Mode
@@ -12,6 +14,15 @@ interface LeftRailProps {
   recent: HistoryItem[]
   onSelectRecent: (item: HistoryItem) => void
   onClearRecent: () => void
+  musicState: MusicState
+  musicUrl: string | null
+  onMusicLoad: (url: string) => void
+  onMusicPlay: () => void
+  onMusicPause: () => void
+  onMusicNext: () => void
+  onMusicPrev: () => void
+  onMusicVolume: (v: number) => void
+  onMusicStop: () => void
 }
 
 const MODES: { id: Mode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -37,6 +48,15 @@ export function LeftRail({
   recent,
   onSelectRecent,
   onClearRecent,
+  musicState,
+  musicUrl,
+  onMusicLoad,
+  onMusicPlay,
+  onMusicPause,
+  onMusicNext,
+  onMusicPrev,
+  onMusicVolume,
+  onMusicStop,
 }: LeftRailProps) {
   return (
     <aside className="w-[320px] shrink-0 h-full border-r border-border bg-card/30 flex flex-col">
@@ -133,6 +153,18 @@ export function LeftRail({
           )}
         </ul>
       </ScrollArea>
+
+      <MusicBar
+        state={musicState}
+        url={musicUrl}
+        onLoad={onMusicLoad}
+        onPlay={onMusicPlay}
+        onPause={onMusicPause}
+        onNext={onMusicNext}
+        onPrev={onMusicPrev}
+        onVolume={onMusicVolume}
+        onStop={onMusicStop}
+      />
 
       <div className="border-t border-border p-2">
         <ThemeToggle />
