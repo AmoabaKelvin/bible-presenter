@@ -68,6 +68,7 @@ function getReferenceColorHex(bgColor: string) {
 interface SlideStageProps {
   backgroundColor: string
   backgroundImage?: string | null
+  mediaUrl?: string | null
   className?: string
   children?: ReactNode
 }
@@ -75,6 +76,7 @@ interface SlideStageProps {
 export function SlideStage({
   backgroundColor,
   backgroundImage,
+  mediaUrl,
   className = "",
   children,
 }: SlideStageProps) {
@@ -121,6 +123,23 @@ export function SlideStage({
           visibility: scale === 0 ? "hidden" : "visible",
         }}
       >
+        {mediaUrl && (
+          <img
+            src={mediaUrl}
+            alt=""
+            draggable={false}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              objectPosition: "center",
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          />
+        )}
         {children}
       </div>
     </div>

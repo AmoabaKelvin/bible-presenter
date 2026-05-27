@@ -304,3 +304,23 @@ export const allBooks = [...oldTestament, ...newTestament]
 export function getBookId(bookName: string): string {
   return BOOK_API_IDS[bookName] ?? bookName.toLowerCase().slice(0, 3)
 }
+
+export interface BibleRef {
+  book: BibleBook
+  chapter: number
+}
+
+export function getPrevChapterRef(book: BibleBook, chapter: number): BibleRef | null {
+  if (chapter > 1) return { book, chapter: chapter - 1 }
+  const idx = allBooks.findIndex((b) => b.name === book.name)
+  if (idx <= 0) return null
+  const prev = allBooks[idx - 1]
+  return { book: prev, chapter: prev.chapters.length }
+}
+
+export function getNextChapterRef(book: BibleBook, chapter: number): BibleRef | null {
+  if (chapter < book.chapters.length) return { book, chapter: chapter + 1 }
+  const idx = allBooks.findIndex((b) => b.name === book.name)
+  if (idx === -1 || idx >= allBooks.length - 1) return null
+  return { book: allBooks[idx + 1], chapter: 1 }
+}

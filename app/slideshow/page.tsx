@@ -15,6 +15,7 @@ interface VerseData {
   version?: string
   backgroundColor?: string
   backgroundImage?: string
+  mediaUrl?: string
 }
 
 export default function SlideshowPage() {
@@ -55,7 +56,7 @@ export default function SlideshowPage() {
       if (verseRef) {
         document.title = `${verseRef} - Slideshow`
       } else {
-        document.title = "Bible Presenter - Slideshow"
+        document.title = "flowwww — Slideshow"
       }
     }
 
@@ -139,11 +140,13 @@ export default function SlideshowPage() {
 
   const backgroundColor = data.backgroundColor || (data.darkMode ? "#000000" : "#FFFFFF")
   const backgroundImage = data.backgroundImage
+  const mediaUrl = data.mediaUrl
 
   return (
     <SlideStage
       backgroundColor={backgroundColor}
       backgroundImage={backgroundImage}
+      mediaUrl={mediaUrl}
       className="w-screen h-screen"
     >
       {data.verses.length > 0 && (

@@ -1,0 +1,1801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bible Presenter — Operator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600&family=JetBrains+Mono:wght@300;400;500;600&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --ink-0: #07090e;
+    --ink-1: #0b0f16;
+    --ink-2: #10151e;
+    --ink-3: #151c28;
+    --ink-4: #1c2536;
+
+    --rule-1: #161d29;
+    --rule-2: #1f293a;
+    --rule-3: #2c3a52;
+    --rule-4: #3d4f6c;
+
+    --vellum-0: #ece4d2;
+    --vellum-1: #c8c0ad;
+    --vellum-2: #8c8676;
+    --vellum-3: #5b574a;
+
+    --gilt: #d4a24c;
+    --gilt-dim: #8b7235;
+    --gilt-bright: #f4c875;
+    --gilt-wash: rgba(212, 162, 76, 0.08);
+
+    --crimson: #c8364a;
+    --crimson-bright: #e6485e;
+    --crimson-wash: rgba(200, 54, 74, 0.12);
+
+    --font-display: "Cormorant Garamond", "EB Garamond", Georgia, serif;
+    --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 20px;
+    --s-6: 28px;
+    --s-7: 40px;
+    --s-8: 64px;
+
+    --rail-left-w: 264px;
+    --rail-right-w: 312px;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--ink-0);
+    color: var(--vellum-0);
+    font-family: var(--font-display);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "ss02", "liga", "kern";
+    letter-spacing: 0.005em;
+  }
+
+  /* ── Subtle ambient noise ── */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background-image: radial-gradient(
+        1100px 600px at 15% -10%,
+        rgba(212, 162, 76, 0.04),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 600px at 110% 110%,
+        rgba(60, 90, 140, 0.05),
+        transparent 60%
+      );
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  /* ── App grid ── */
+  .app {
+    position: relative;
+    z-index: 3;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 56px 1fr 28px;
+    grid-template-columns: var(--rail-left-w) 1fr var(--rail-right-w);
+    grid-template-areas:
+      "topbar topbar topbar"
+      "left stage right"
+      "status status status";
+  }
+
+  /* ─────────────────────────────────────────────
+     TOP COMMAND BAR
+     ───────────────────────────────────────────── */
+  .topbar {
+    grid-area: topbar;
+    display: grid;
+    grid-template-columns: var(--rail-left-w) 1fr var(--rail-right-w);
+    align-items: stretch;
+    border-bottom: 1px solid var(--rule-2);
+    background: linear-gradient(180deg, var(--ink-1) 0%, var(--ink-0) 100%);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 var(--s-5);
+    border-right: 1px solid var(--rule-2);
+  }
+
+  .brand-mark {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--gilt-dim);
+    color: var(--gilt);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1;
+    padding-bottom: 1px;
+    box-shadow: inset 0 0 0 1px rgba(212, 162, 76, 0.18);
+  }
+
+  .brand-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vellum-0);
+  }
+
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+    margin-left: auto;
+  }
+
+  .command {
+    display: flex;
+    align-items: center;
+    gap: var(--s-4);
+    padding: 0 var(--s-6);
+    border-right: 1px solid var(--rule-2);
+  }
+
+  .quick-ref {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: 8px 14px;
+    background: var(--ink-2);
+    border: 1px solid var(--rule-2);
+    border-bottom-color: var(--gilt-dim);
+    transition: border-color 180ms ease, background 180ms ease;
+  }
+
+  .quick-ref:focus-within {
+    border-color: var(--rule-4);
+    border-bottom-color: var(--gilt);
+    background: var(--ink-3);
+  }
+
+  .quick-ref svg {
+    width: 14px;
+    height: 14px;
+    color: var(--vellum-2);
+    flex: none;
+  }
+
+  .quick-ref input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--vellum-0);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+
+  .quick-ref input::placeholder {
+    color: var(--vellum-3);
+    letter-spacing: 0.08em;
+  }
+
+  .quick-ref kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--vellum-2);
+    border: 1px solid var(--rule-3);
+    padding: 2px 6px;
+    background: var(--ink-1);
+  }
+
+  .modes {
+    display: flex;
+    border: 1px solid var(--rule-2);
+    background: var(--ink-1);
+  }
+
+  .mode {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--vellum-2);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 0 14px;
+    height: 34px;
+    cursor: pointer;
+    transition: color 160ms ease, background 160ms ease;
+    border-right: 1px solid var(--rule-2);
+  }
+
+  .mode:last-child {
+    border-right: none;
+  }
+
+  .mode:hover {
+    color: var(--vellum-0);
+    background: var(--ink-2);
+  }
+
+  .mode.is-active {
+    color: var(--gilt);
+    background: var(--gilt-wash);
+    box-shadow: inset 0 -1px 0 var(--gilt);
+  }
+
+  .meta-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: 0 var(--s-5);
+    justify-content: flex-end;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid var(--rule-2);
+    color: var(--vellum-1);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  }
+
+  .icon-btn:hover {
+    color: var(--vellum-0);
+    border-color: var(--rule-4);
+    background: var(--ink-2);
+  }
+
+  .icon-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .topbar-output {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule-3);
+    color: var(--vellum-0);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    height: 32px;
+    padding: 0 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 160ms, background 160ms, color 160ms;
+  }
+
+  .topbar-output::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: var(--gilt);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--gilt);
+  }
+
+  .topbar-output:hover {
+    border-color: var(--gilt);
+    color: var(--gilt-bright);
+  }
+
+  /* ─────────────────────────────────────────────
+     LEFT RAIL — Navigator
+     ───────────────────────────────────────────── */
+  .rail-left {
+    grid-area: left;
+    border-right: 1px solid var(--rule-2);
+    background: var(--ink-1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .rail-section {
+    border-bottom: 1px solid var(--rule-2);
+  }
+
+  .rail-section:last-child {
+    border-bottom: none;
+  }
+
+  .rail-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px var(--s-5);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .rail-section-head .count {
+    color: var(--vellum-2);
+  }
+
+  .search {
+    margin: 0 var(--s-5) 12px;
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 7px 10px;
+    background: var(--ink-2);
+    border: 1px solid var(--rule-2);
+  }
+
+  .search svg {
+    width: 12px;
+    height: 12px;
+    color: var(--vellum-3);
+  }
+
+  .search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--vellum-0);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+  }
+
+  .search input::placeholder {
+    color: var(--vellum-3);
+  }
+
+  .books-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: var(--s-5);
+  }
+
+  .books-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .books-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .books-scroll::-webkit-scrollbar-thumb {
+    background: var(--rule-2);
+  }
+
+  .testament {
+    margin-top: 4px;
+  }
+
+  .testament-label {
+    padding: 8px var(--s-5);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+  }
+
+  .testament-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule-2);
+  }
+
+  .book-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding: 0 var(--s-3) var(--s-3);
+  }
+
+  .book {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--vellum-1);
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    padding: 7px 10px;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: color 140ms ease, background 140ms ease;
+    border-left: 1px solid transparent;
+  }
+
+  .book:hover {
+    color: var(--vellum-0);
+    background: var(--ink-2);
+  }
+
+  .book.is-active {
+    color: var(--gilt-bright);
+    background: var(--gilt-wash);
+    border-left-color: var(--gilt);
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  /* When a book is selected, we reveal a tray with chapter/verse */
+  .picker-tray {
+    border-top: 1px solid var(--rule-2);
+    background: var(--ink-2);
+    padding: 14px var(--s-5) 18px;
+  }
+
+  .picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .picker-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .picker-now {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--vellum-1);
+  }
+
+  .grid-pills {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+
+  .pill {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule-2);
+    color: var(--vellum-1);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    height: 22px;
+    cursor: pointer;
+    transition: color 140ms, background 140ms, border-color 140ms;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pill:hover {
+    color: var(--vellum-0);
+    border-color: var(--rule-4);
+    background: var(--ink-3);
+  }
+
+  .pill.is-active {
+    color: var(--ink-0);
+    background: var(--gilt);
+    border-color: var(--gilt);
+    font-weight: 500;
+  }
+
+  /* ─────────────────────────────────────────────
+     CENTER STAGE — Preview
+     ───────────────────────────────────────────── */
+  .stage {
+    grid-area: stage;
+    background: var(--ink-0);
+    padding: var(--s-6) var(--s-7);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-5);
+    overflow: hidden;
+  }
+
+  .stage-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-5);
+    flex: none;
+  }
+
+  .stage-title {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-5);
+  }
+
+  .stage-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .stage-ref {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 24px;
+    color: var(--vellum-0);
+    letter-spacing: 0.005em;
+  }
+
+  .stage-ref .num {
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--gilt);
+    margin-left: 8px;
+    letter-spacing: 0.12em;
+    font-variant-numeric: tabular-nums;
+    transform: translateY(-2px);
+    display: inline-block;
+  }
+
+  .stage-meta {
+    display: flex;
+    gap: var(--s-5);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .stage-meta span strong {
+    color: var(--vellum-1);
+    font-weight: 500;
+  }
+
+  /* Preview frame — the hero canvas */
+  .preview-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .preview {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 100%;
+    position: relative;
+    background: #0a1018;
+    background-image: radial-gradient(
+        circle at 30% 20%,
+        rgba(40, 60, 90, 0.4) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        circle at 80% 80%,
+        rgba(60, 30, 80, 0.3) 0%,
+        transparent 60%
+      ),
+      linear-gradient(180deg, #0e1726 0%, #060a12 100%);
+    box-shadow: 0 0 0 1px var(--rule-2),
+      0 0 0 2px rgba(212, 162, 76, 0.18),
+      0 30px 60px -20px rgba(0, 0, 0, 0.6),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+  }
+
+  /* Corner crosshairs — printer's marks */
+  .preview::before,
+  .preview::after,
+  .preview .ch-tl,
+  .preview .ch-tr {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: var(--gilt-dim);
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  .preview::before {
+    top: 10px;
+    left: 10px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+
+  .preview::after {
+    bottom: 10px;
+    right: 10px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+  }
+
+  .preview .ch-tr {
+    top: 10px;
+    right: 10px;
+    border-top: 1px solid;
+    border-right: 1px solid;
+  }
+
+  .preview .ch-bl {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    width: 16px;
+    height: 16px;
+    border-bottom: 1px solid var(--gilt-dim);
+    border-left: 1px solid var(--gilt-dim);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .preview-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8% 10%;
+  }
+
+  .scripture {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(28px, 3.6vw, 56px);
+    line-height: 1.18;
+    color: var(--vellum-0);
+    letter-spacing: 0.005em;
+    max-width: 18ch;
+    margin: 0 0 24px;
+    text-wrap: balance;
+    text-shadow: 0 2px 22px rgba(0, 0, 0, 0.4);
+  }
+
+  .scripture .drop {
+    font-family: var(--font-display);
+    font-style: normal;
+    font-weight: 500;
+    color: var(--gilt-bright);
+    font-size: 1.1em;
+    line-height: 1;
+    margin-right: 0.04em;
+  }
+
+  .verse-ref {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    font-family: var(--font-mono);
+    font-size: clamp(10px, 0.85vw, 12px);
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    color: var(--vellum-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .verse-ref::before,
+  .verse-ref::after {
+    content: "";
+    width: 28px;
+    height: 1px;
+    background: var(--gilt-dim);
+  }
+
+  /* Cue bar — the action row */
+  .cue-bar {
+    flex: none;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto auto;
+    align-items: stretch;
+    gap: 0;
+    border: 1px solid var(--rule-2);
+    background: var(--ink-1);
+  }
+
+  .cue-bar > * {
+    border-right: 1px solid var(--rule-2);
+  }
+
+  .cue-bar > *:last-child {
+    border-right: none;
+  }
+
+  .cue-primary {
+    appearance: none;
+    background: var(--gilt);
+    border: none;
+    color: var(--ink-0);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    padding: 0 var(--s-7);
+    height: 56px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    transition: background 160ms ease, color 160ms ease;
+    position: relative;
+  }
+
+  .cue-primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+
+  .cue-primary:hover {
+    background: var(--gilt-bright);
+  }
+
+  .cue-primary .shortcut {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    border: 1px solid rgba(7, 9, 14, 0.5);
+    padding: 2px 6px;
+    background: rgba(7, 9, 14, 0.18);
+  }
+
+  .cue-status {
+    padding: 0 var(--s-6);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .cue-status-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .cue-status-value {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--vellum-0);
+  }
+
+  .cue-secondary {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--vellum-1);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding: 0 var(--s-5);
+    height: 56px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 160ms ease, background 160ms ease;
+  }
+
+  .cue-secondary:hover {
+    color: var(--vellum-0);
+    background: var(--ink-2);
+  }
+
+  .cue-secondary svg {
+    width: 12px;
+    height: 12px;
+    flex: none;
+  }
+
+  /* ─────────────────────────────────────────────
+     RIGHT RAIL — Live monitor, Queue, History
+     ───────────────────────────────────────────── */
+  .rail-right {
+    grid-area: right;
+    border-left: 1px solid var(--rule-2);
+    background: var(--ink-1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .live-card {
+    padding: var(--s-5);
+    border-bottom: 1px solid var(--rule-2);
+    background: linear-gradient(
+      180deg,
+      rgba(200, 54, 74, 0.05) 0%,
+      transparent 70%
+    );
+  }
+
+  .live-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--crimson-bright);
+    font-weight: 500;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--crimson);
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 var(--crimson);
+    animation: live-pulse 1800ms ease-out infinite;
+  }
+
+  @keyframes live-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(200, 54, 74, 0.6);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(200, 54, 74, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(200, 54, 74, 0);
+    }
+  }
+
+  .live-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--vellum-1);
+    letter-spacing: 0.12em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .live-monitor {
+    aspect-ratio: 16 / 9;
+    position: relative;
+    background: #0a1018;
+    background-image: radial-gradient(
+        circle at 30% 20%,
+        rgba(40, 60, 90, 0.4) 0%,
+        transparent 60%
+      ),
+      linear-gradient(180deg, #0e1726 0%, #060a12 100%);
+    border: 1px solid var(--rule-2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10% 8%;
+    text-align: center;
+  }
+
+  .live-monitor .ml-scripture {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.2;
+    color: var(--vellum-0);
+    margin: 0 0 8px;
+    max-width: 18ch;
+    text-wrap: balance;
+  }
+
+  .live-monitor .ml-ref {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .live-foot {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .live-foot button {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule-3);
+    color: var(--vellum-1);
+    font: inherit;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+
+  .live-foot button:hover {
+    color: var(--crimson-bright);
+    border-color: var(--crimson);
+  }
+
+  /* Queue + History list cards */
+  .list-card {
+    padding: var(--s-5) 0 var(--s-3);
+    border-bottom: 1px solid var(--rule-2);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .list-card:last-child {
+    border-bottom: none;
+    flex: 1;
+  }
+
+  .list-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 var(--s-5);
+    margin-bottom: 10px;
+  }
+
+  .list-title {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .list-title .count {
+    color: var(--gilt);
+    font-weight: 500;
+    margin-left: 8px;
+  }
+
+  .list-action {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--vellum-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .list-action:hover {
+    color: var(--vellum-0);
+  }
+
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .list::-webkit-scrollbar-thumb {
+    background: var(--rule-2);
+  }
+
+  .list-item {
+    display: grid;
+    grid-template-columns: 22px 1fr auto;
+    align-items: baseline;
+    gap: 8px;
+    padding: 9px var(--s-5);
+    cursor: pointer;
+    transition: background 140ms ease;
+    border-left: 2px solid transparent;
+  }
+
+  .list-item:hover {
+    background: var(--ink-2);
+  }
+
+  .list-item .ord {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--vellum-3);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.1em;
+  }
+
+  .list-item .label {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 15px;
+    color: var(--vellum-0);
+    line-height: 1.2;
+  }
+
+  .list-item .label small {
+    display: block;
+    font-style: normal;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+    margin-top: 3px;
+  }
+
+  .list-item .pin {
+    color: var(--vellum-3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 140ms ease, color 140ms ease;
+  }
+
+  .list-item:hover .pin {
+    opacity: 1;
+  }
+
+  .list-item:hover .pin:hover {
+    color: var(--gilt);
+  }
+
+  .list-item.is-next {
+    border-left-color: var(--gilt);
+    background: var(--gilt-wash);
+  }
+
+  .list-item.is-next .label {
+    color: var(--gilt-bright);
+  }
+
+  /* ─────────────────────────────────────────────
+     STATUS BAR
+     ───────────────────────────────────────────── */
+  .status {
+    grid-area: status;
+    border-top: 1px solid var(--rule-2);
+    background: var(--ink-1);
+    display: flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .status-item {
+    padding: 0 var(--s-5);
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-right: 1px solid var(--rule-2);
+  }
+
+  .status-item:last-child {
+    border-right: none;
+  }
+
+  .status-item strong {
+    color: var(--vellum-1);
+    font-weight: 500;
+  }
+
+  .status-item.is-good::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: #6abf69;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(106, 191, 105, 0.6);
+  }
+
+  .status-spacer {
+    flex: 1;
+  }
+
+  .status-shortcuts {
+    display: flex;
+    gap: var(--s-5);
+    padding: 0 var(--s-5);
+  }
+
+  .status-shortcuts kbd {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    color: var(--vellum-1);
+    border: 1px solid var(--rule-3);
+    padding: 1px 5px;
+    margin-right: 6px;
+    background: var(--ink-0);
+  }
+
+  /* ─────────────────────────────────────────────
+     Hover affordance for the preview content drop
+     ───────────────────────────────────────────── */
+  .preview-content .crossfade {
+    position: absolute;
+    inset: 8% 10%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: opacity 220ms ease, transform 320ms ease;
+  }
+
+  .preview-content .crossfade.is-out {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  /* Empty mode panels */
+  .empty-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--s-7) var(--s-5);
+    text-align: center;
+    gap: 10px;
+    color: var(--vellum-3);
+  }
+
+  .empty-pane .ep-title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 22px;
+    color: var(--vellum-1);
+  }
+
+  .empty-pane .ep-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--vellum-3);
+  }
+
+  .empty-pane .ep-cta {
+    margin-top: var(--s-3);
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--gilt-dim);
+    color: var(--gilt);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 160ms, color 160ms;
+  }
+
+  .empty-pane .ep-cta:hover {
+    background: var(--gilt-wash);
+    color: var(--gilt-bright);
+  }
+
+  /* Subtle reveal on first paint */
+  .stage,
+  .rail-left,
+  .rail-right {
+    animation: rise 480ms ease 60ms both;
+  }
+
+  .topbar {
+    animation: rise 380ms ease both;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ─────────── TOP COMMAND BAR ─────────── -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">✣</div>
+      <div>
+        <div class="brand-name">Bible Presenter</div>
+      </div>
+      <div class="brand-sub">Operator</div>
+    </div>
+
+    <div class="command">
+      <div class="quick-ref">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="quickRef" type="text" placeholder="Type a passage — e.g. John 3:16, Psalm 23, Rom 8 28" />
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="modes" role="tablist">
+        <button class="mode is-active" data-mode="scripture">Scripture</button>
+        <button class="mode" data-mode="media">Media</button>
+        <button class="mode" data-mode="notes">Notes</button>
+      </div>
+    </div>
+
+    <div class="meta-actions">
+      <button class="topbar-output" title="Open output window">Output 1920×1080</button>
+      <button class="icon-btn" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ─────────── LEFT RAIL ─────────── -->
+  <aside class="rail-left" id="leftRail">
+    <!-- Scripture pane (default) -->
+    <div class="rail-pane" data-pane="scripture" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+      <div class="rail-section-head">
+        <span>Library</span>
+        <span class="count">66 books</span>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="bookSearch" type="text" placeholder="Filter books…" />
+      </div>
+
+      <div class="books-scroll" id="booksScroll">
+        <div class="testament">
+          <div class="testament-label">Old Testament</div>
+          <div class="book-grid" id="otBooks"></div>
+        </div>
+        <div class="testament">
+          <div class="testament-label">New Testament</div>
+          <div class="book-grid" id="ntBooks"></div>
+        </div>
+      </div>
+
+      <!-- Chapter / Verse tray -->
+      <div class="picker-tray" id="pickerTray">
+        <div class="picker-row">
+          <span class="picker-label">Chapter</span>
+          <span class="picker-now" id="chapterNow">— / —</span>
+        </div>
+        <div class="grid-pills" id="chapterGrid"></div>
+
+        <div class="picker-row">
+          <span class="picker-label">Verse</span>
+          <span class="picker-now" id="verseNow">— / —</span>
+        </div>
+        <div class="grid-pills" id="verseGrid"></div>
+      </div>
+    </div>
+
+    <!-- Media pane (hidden by default) -->
+    <div class="rail-pane" data-pane="media" style="display:none; flex:1; flex-direction:column;">
+      <div class="rail-section-head">
+        <span>Media Library</span>
+        <span class="count">12 items</span>
+      </div>
+      <div class="empty-pane" style="padding-top:48px;">
+        <div class="ep-title">A place for backgrounds.</div>
+        <div class="ep-sub">Images · Videos · Motion loops</div>
+        <button class="ep-cta">+ Upload media</button>
+      </div>
+    </div>
+
+    <!-- Notes pane -->
+    <div class="rail-pane" data-pane="notes" style="display:none; flex:1; flex-direction:column;">
+      <div class="rail-section-head">
+        <span>Notes</span>
+        <span class="count">3 saved</span>
+      </div>
+      <div class="empty-pane" style="padding-top:32px;">
+        <div class="ep-title">Sermon notes & cues.</div>
+        <div class="ep-sub">Markdown supported</div>
+        <button class="ep-cta">+ New note</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─────────── CENTER STAGE ─────────── -->
+  <section class="stage">
+    <div class="stage-header">
+      <div class="stage-title">
+        <span class="stage-eyebrow">Preview · Cue 03</span>
+        <span class="stage-ref" id="stageRef">John, the Gospel of <span class="num">III · 16</span></span>
+      </div>
+      <div class="stage-meta">
+        <span>Version <strong>KJV</strong></span>
+        <span>Font <strong>XL</strong></span>
+        <span>Theme <strong>Ink</strong></span>
+      </div>
+    </div>
+
+    <div class="preview-wrap">
+      <div class="preview">
+        <div class="ch-tr"></div>
+        <div class="ch-bl"></div>
+
+        <div class="preview-content">
+          <div class="crossfade" id="previewSlot">
+            <p class="scripture" id="previewText">
+              <span class="drop">F</span>or God so loved the world, that he gave his only
+              begotten Son, that whosoever believeth in him should not perish,
+              but have everlasting life.
+            </p>
+            <div class="verse-ref" id="previewRef">John · 3 · 16 · KJV</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cue-bar">
+      <button class="cue-primary" id="goLive">
+        Cue to Live
+        <span class="shortcut">SPACE</span>
+      </button>
+      <div class="cue-status">
+        <span class="cue-status-label">Next on Air</span>
+        <span class="cue-status-value" id="nextOnAir">John 3 : 16</span>
+      </div>
+      <button class="cue-secondary" title="Add to queue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg>
+        Queue
+      </button>
+      <button class="cue-secondary" title="Black output">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="0"/></svg>
+        Black
+      </button>
+      <button class="cue-secondary" title="Clear output">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 6l12 12M6 18L18 6"/></svg>
+        Clear
+      </button>
+      <button class="cue-secondary" title="Logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+        Logo
+      </button>
+    </div>
+  </section>
+
+  <!-- ─────────── RIGHT RAIL ─────────── -->
+  <aside class="rail-right">
+    <div class="live-card">
+      <div class="live-head">
+        <span class="live-badge"><span class="live-dot"></span> On Air</span>
+        <span class="live-time" id="liveTime">00:42</span>
+      </div>
+      <div class="live-monitor">
+        <p class="ml-scripture" id="liveText">The Lord is my shepherd; I shall not want.</p>
+        <span class="ml-ref" id="liveRef">Psalm · 23 · 1 · KJV</span>
+      </div>
+      <div class="live-foot">
+        <span>Output · 1920×1080</span>
+        <button id="clearLive">Clear</button>
+      </div>
+    </div>
+
+    <div class="list-card">
+      <div class="list-head">
+        <div class="list-title">Queue <span class="count">3</span></div>
+        <button class="list-action">Clear all</button>
+      </div>
+      <ul class="list" id="queueList">
+        <li class="list-item is-next">
+          <span class="ord">01</span>
+          <span class="label">For God so loved the world… <small>John 3:16 · KJV</small></span>
+          <span class="pin">↑</span>
+        </li>
+        <li class="list-item">
+          <span class="ord">02</span>
+          <span class="label">In the beginning, God created… <small>Genesis 1:1 · KJV</small></span>
+          <span class="pin">⌫</span>
+        </li>
+        <li class="list-item">
+          <span class="ord">03</span>
+          <span class="label">Sermon Point I — Grace before law <small>Note · Pastor J</small></span>
+          <span class="pin">⌫</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="list-card">
+      <div class="list-head">
+        <div class="list-title">History</div>
+        <button class="list-action">Hide</button>
+      </div>
+      <ul class="list">
+        <li class="list-item">
+          <span class="ord">·</span>
+          <span class="label">Romans 8:28 <small>2 min ago</small></span>
+          <span class="pin">↻</span>
+        </li>
+        <li class="list-item">
+          <span class="ord">·</span>
+          <span class="label">Psalm 23:1 <small>6 min ago</small></span>
+          <span class="pin">↻</span>
+        </li>
+        <li class="list-item">
+          <span class="ord">·</span>
+          <span class="label">Welcome &amp; opening prayer <small>11 min ago</small></span>
+          <span class="pin">↻</span>
+        </li>
+      </ul>
+    </div>
+  </aside>
+
+  <!-- ─────────── STATUS BAR ─────────── -->
+  <footer class="status">
+    <span class="status-item is-good">Output <strong>Connected</strong></span>
+    <span class="status-item">Translation <strong>KJV</strong></span>
+    <span class="status-item">Service <strong>Sunday · 09:30</strong></span>
+    <span class="status-spacer"></span>
+    <div class="status-shortcuts">
+      <span><kbd>⌘K</kbd>Search</span>
+      <span><kbd>⎵</kbd>Cue live</span>
+      <span><kbd>⎋</kbd>Clear</span>
+      <span><kbd>↑↓</kbd>Queue</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+  // ─────────── Minimal Bible dataset for the mock ───────────
+  const OT = [
+    ["Genesis", 50], ["Exodus", 40], ["Leviticus", 27], ["Numbers", 36],
+    ["Deuteronomy", 34], ["Joshua", 24], ["Judges", 21], ["Ruth", 4],
+    ["1 Samuel", 31], ["2 Samuel", 24], ["1 Kings", 22], ["2 Kings", 25],
+    ["1 Chronicles", 29], ["2 Chronicles", 36], ["Ezra", 10], ["Nehemiah", 13],
+    ["Esther", 10], ["Job", 42], ["Psalms", 150], ["Proverbs", 31],
+    ["Ecclesiastes", 12], ["Song of Solomon", 8], ["Isaiah", 66], ["Jeremiah", 52],
+    ["Lamentations", 5], ["Ezekiel", 48], ["Daniel", 12], ["Hosea", 14],
+    ["Joel", 3], ["Amos", 9], ["Obadiah", 1], ["Jonah", 4],
+    ["Micah", 7], ["Nahum", 3], ["Habakkuk", 3], ["Zephaniah", 3],
+    ["Haggai", 2], ["Zechariah", 14], ["Malachi", 4]
+  ];
+  const NT = [
+    ["Matthew", 28], ["Mark", 16], ["Luke", 24], ["John", 21],
+    ["Acts", 28], ["Romans", 16], ["1 Corinthians", 16], ["2 Corinthians", 13],
+    ["Galatians", 6], ["Ephesians", 6], ["Philippians", 4], ["Colossians", 4],
+    ["1 Thessalonians", 5], ["2 Thessalonians", 3], ["1 Timothy", 6],
+    ["2 Timothy", 4], ["Titus", 3], ["Philemon", 1], ["Hebrews", 13],
+    ["James", 5], ["1 Peter", 5], ["2 Peter", 3], ["1 John", 5],
+    ["2 John", 1], ["3 John", 1], ["Jude", 1], ["Revelation", 22]
+  ];
+
+  const SAMPLE_VERSES = {
+    "John 3:16": "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.",
+    "Genesis 1:1": "In the beginning God created the heaven and the earth.",
+    "Psalm 23:1": "The Lord is my shepherd; I shall not want.",
+    "Romans 8:28": "And we know that all things work together for good to them that love God, to them who are the called according to his purpose.",
+    "Philippians 4:13": "I can do all things through Christ which strengtheneth me.",
+    "Proverbs 3:5": "Trust in the Lord with all thine heart; and lean not unto thine own understanding.",
+    "Matthew 5:14": "Ye are the light of the world. A city that is set on an hill cannot be hid.",
+  };
+
+  // ─────────── State ───────────
+  const state = {
+    book: "John",
+    chapter: 3,
+    verse: 16,
+    chapters: 21
+  };
+
+  // ─────────── Render book lists ───────────
+  function renderBooks(targetId, list) {
+    const root = document.getElementById(targetId);
+    root.innerHTML = list
+      .map(([name]) =>
+        `<button class="book${name === state.book ? " is-active" : ""}" data-book="${name}">${name}</button>`
+      )
+      .join("");
+  }
+  renderBooks("otBooks", OT);
+  renderBooks("ntBooks", NT);
+
+  function bookLookup(name) {
+    return OT.concat(NT).find((b) => b[0] === name);
+  }
+
+  // ─────────── Chapter / Verse pills ───────────
+  function renderChapters() {
+    const root = document.getElementById("chapterGrid");
+    const total = state.chapters;
+    let html = "";
+    for (let i = 1; i <= total; i++) {
+      html += `<button class="pill${i === state.chapter ? " is-active" : ""}" data-chapter="${i}">${i}</button>`;
+    }
+    root.innerHTML = html;
+    document.getElementById("chapterNow").textContent = `${state.chapter} / ${total}`;
+  }
+
+  function renderVerses(versesInChapter = 36) {
+    const root = document.getElementById("verseGrid");
+    let html = "";
+    for (let i = 1; i <= versesInChapter; i++) {
+      html += `<button class="pill${i === state.verse ? " is-active" : ""}" data-verse="${i}">${i}</button>`;
+    }
+    root.innerHTML = html;
+    document.getElementById("verseNow").textContent = `${state.verse} / ${versesInChapter}`;
+  }
+
+  function selectBook(name) {
+    const found = bookLookup(name);
+    if (!found) return;
+    state.book = name;
+    state.chapters = found[1];
+    state.chapter = Math.min(state.chapter, state.chapters);
+    state.verse = 1;
+    document.querySelectorAll(".book").forEach((b) =>
+      b.classList.toggle("is-active", b.dataset.book === name)
+    );
+    renderChapters();
+    renderVerses();
+    updatePreview();
+  }
+
+  function selectChapter(ch) {
+    state.chapter = ch;
+    state.verse = 1;
+    renderChapters();
+    renderVerses();
+    updatePreview();
+  }
+
+  function selectVerse(v) {
+    state.verse = v;
+    document.querySelectorAll("#verseGrid .pill").forEach((p) =>
+      p.classList.toggle("is-active", Number(p.dataset.verse) === v)
+    );
+    document.getElementById("verseNow").textContent = `${v} / 36`;
+    updatePreview();
+  }
+
+  // ─────────── Preview cross-fade ───────────
+  function updatePreview() {
+    const ref = `${state.book} ${state.chapter}:${state.verse}`;
+    const text =
+      SAMPLE_VERSES[ref] ||
+      "And the word came unto him, saying — peace be still, and rest in this hour. Look upon the light that shineth and is not overcome by the dark.";
+
+    const slot = document.getElementById("previewSlot");
+    slot.classList.add("is-out");
+    setTimeout(() => {
+      const drop = text.charAt(0);
+      const rest = text.slice(1);
+      document.getElementById("previewText").innerHTML =
+        `<span class="drop">${drop}</span>${rest}`;
+      document.getElementById("previewRef").textContent =
+        `${state.book.toUpperCase()} · ${state.chapter} · ${state.verse} · KJV`;
+      document.getElementById("stageRef").innerHTML =
+        `${state.book}, the passage of <span class="num">${state.chapter} · ${state.verse}</span>`;
+      document.getElementById("nextOnAir").textContent =
+        `${state.book} ${state.chapter} : ${state.verse}`;
+      slot.classList.remove("is-out");
+    }, 220);
+  }
+
+  // ─────────── Cue to live ───────────
+  function goLive() {
+    const ref = `${state.book} ${state.chapter}:${state.verse}`;
+    const text =
+      SAMPLE_VERSES[ref] ||
+      "And the word came unto him, saying — peace be still, and rest in this hour.";
+    document.getElementById("liveText").textContent = text;
+    document.getElementById("liveRef").textContent =
+      `${state.book.toUpperCase()} · ${state.chapter} · ${state.verse} · KJV`;
+
+    // tiny flash on the cue button
+    const btn = document.getElementById("goLive");
+    btn.animate(
+      [
+        { background: "var(--gilt-bright)" },
+        { background: "var(--gilt)" }
+      ],
+      { duration: 260, easing: "ease-out" }
+    );
+  }
+
+  document.getElementById("clearLive").addEventListener("click", () => {
+    document.getElementById("liveText").textContent = "";
+    document.getElementById("liveRef").textContent = "— · — · — · —";
+  });
+
+  // ─────────── Event wiring ───────────
+  document.getElementById("booksScroll").addEventListener("click", (e) => {
+    const t = e.target.closest(".book");
+    if (t) selectBook(t.dataset.book);
+  });
+
+  document.getElementById("chapterGrid").addEventListener("click", (e) => {
+    const t = e.target.closest(".pill");
+    if (t) selectChapter(Number(t.dataset.chapter));
+  });
+
+  document.getElementById("verseGrid").addEventListener("click", (e) => {
+    const t = e.target.closest(".pill");
+    if (t) selectVerse(Number(t.dataset.verse));
+  });
+
+  document.getElementById("goLive").addEventListener("click", goLive);
+
+  // Mode switching
+  document.querySelectorAll(".mode").forEach((m) => {
+    m.addEventListener("click", () => {
+      document.querySelectorAll(".mode").forEach((x) => x.classList.remove("is-active"));
+      m.classList.add("is-active");
+      const target = m.dataset.mode;
+      document.querySelectorAll(".rail-pane").forEach((p) => {
+        p.style.display = p.dataset.pane === target ? "flex" : "none";
+      });
+    });
+  });
+
+  // Quick-ref parser
+  const QR = document.getElementById("quickRef");
+  QR.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const raw = QR.value.trim();
+    if (!raw) return;
+    const m = raw.match(/^([1-3]?\s?[A-Za-z]+)\s+(\d+)\s*[:\.\s]\s*(\d+)$/);
+    if (!m) return;
+    const bookGuess = m[1].trim();
+    const ch = Number(m[2]);
+    const v = Number(m[3]);
+    const match = OT.concat(NT).find(([n]) =>
+      n.toLowerCase().startsWith(bookGuess.toLowerCase())
+    );
+    if (!match) return;
+    selectBook(match[0]);
+    state.chapter = Math.min(ch, match[1]);
+    state.verse = v;
+    renderChapters();
+    renderVerses();
+    updatePreview();
+    QR.value = "";
+  });
+
+  // Book filter
+  document.getElementById("bookSearch").addEventListener("input", (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll(".book").forEach((b) => {
+      b.style.display = !q || b.dataset.book.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e) => {
+    if (document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        QR.focus();
+      }
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      QR.focus();
+      return;
+    }
+    if (e.code === "Space") {
+      e.preventDefault();
+      goLive();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      document.getElementById("liveText").textContent = "";
+      document.getElementById("liveRef").textContent = "— · — · — · —";
+    }
+  });
+
+  // Live timer
+  let seconds = 42;
+  setInterval(() => {
+    seconds++;
+    const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const s = String(seconds % 60).padStart(2, "0");
+    document.getElementById("liveTime").textContent = `${m}:${s}`;
+  }, 1000);
+
+  // Initial paint
+  renderChapters();
+  renderVerses();
+</script>
+</body>
+</html>
