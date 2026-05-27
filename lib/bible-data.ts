@@ -5,19 +5,113 @@ export interface BibleBook {
 
 export interface BibleVersion {
   code: string
+  apiId: string
   name: string
 }
 
+export const BIBLE_API_BASE = "https://bible-api.eightlabs.xyz"
+
 export const BIBLE_VERSIONS: BibleVersion[] = [
-  { code: "KJV", name: "King James Version" },
-  { code: "ASV", name: "American Standard Version" },
-  { code: "NLT", name: "New Living Translation" },
-  { code: "AMP", name: "Amplified Bible" },
-  { code: "NIV", name: "New International Version" },
-  { code: "ESV", name: "English Standard Version" },
-  { code: "NASB", name: "New American Standard Bible" },
-  { code: "NKJV", name: "New King James Version" },
+  { code: "KJV", apiId: "englishkj", name: "King James Version" },
+  { code: "ASV", apiId: "englishasv", name: "American Standard Version" },
+  { code: "AMP", apiId: "englishamplified", name: "Amplified Bible" },
+  { code: "AMPC", apiId: "englishamplifiedclassic", name: "Amplified Classic Bible (1987)" },
+  { code: "BSB", apiId: "englishberean", name: "Berean Standard Bible" },
+  { code: "CSB", apiId: "englishcsb", name: "Christian Standard Bible" },
+  { code: "Darby", apiId: "englishdarby", name: "Darby Translation (1890)" },
+  { code: "EASY", apiId: "englisheasy", name: "EASY English (2024)" },
+  { code: "ERV", apiId: "englisherv", name: "Easy-to-Read Version" },
+  { code: "ESV", apiId: "englishesv", name: "English Standard Version" },
+  { code: "GW", apiId: "englishgw", name: "God's Word Translation" },
+  { code: "HCSB", apiId: "englishhcsb", name: "Holman Christian Standard Bible" },
+  { code: "LSB", apiId: "englishlsb", name: "Legacy Standard Bible" },
+  { code: "MEV", apiId: "englishmev", name: "Modern English Version" },
+  { code: "NASB", apiId: "englishnasb", name: "New American Standard Bible" },
+  { code: "NASU", apiId: "englishnasu", name: "NASB Update" },
+  { code: "NET", apiId: "englishnet", name: "New English Translation" },
+  { code: "NIrV", apiId: "englishnirv", name: "New International Reader's Version" },
+  { code: "NIV", apiId: "englishniv", name: "New International Version" },
+  { code: "NKJV", apiId: "englishnkj", name: "New King James Version" },
+  { code: "NLT", apiId: "englishnlt", name: "New Living Translation" },
+  { code: "NRSV", apiId: "englishnrsv", name: "New Revised Standard Version" },
+  { code: "TPT", apiId: "englishpassion", name: "The Passion Translation" },
+  { code: "RSV", apiId: "englishrsv", name: "Revised Standard Version" },
+  { code: "Tyndale", apiId: "englishtyndale1537", name: "Tyndale Bible (1537)" },
+  { code: "YLT", apiId: "englishylt", name: "Young's Literal Translation" },
 ]
+
+export function getApiTranslationId(code: string): string {
+  return BIBLE_VERSIONS.find((v) => v.code === code)?.apiId ?? "englishkj"
+}
+
+const BOOK_API_IDS: Record<string, string> = {
+  "Genesis": "gen",
+  "Exodus": "exo",
+  "Leviticus": "lev",
+  "Numbers": "num",
+  "Deuteronomy": "deu",
+  "Joshua": "jos",
+  "Judges": "jdg",
+  "Ruth": "rut",
+  "1 Samuel": "1sa",
+  "2 Samuel": "2sa",
+  "1 Kings": "1ki",
+  "2 Kings": "2ki",
+  "1 Chronicles": "1ch",
+  "2 Chronicles": "2ch",
+  "Ezra": "ezr",
+  "Nehemiah": "neh",
+  "Esther": "est",
+  "Job": "job",
+  "Psalms": "psa",
+  "Proverbs": "pro",
+  "Ecclesiastes": "ecc",
+  "Song of Solomon": "sng",
+  "Isaiah": "isa",
+  "Jeremiah": "jer",
+  "Lamentations": "lam",
+  "Ezekiel": "ezk",
+  "Daniel": "dan",
+  "Hosea": "hos",
+  "Joel": "jol",
+  "Amos": "amo",
+  "Obadiah": "oba",
+  "Jonah": "jon",
+  "Micah": "mic",
+  "Nahum": "nam",
+  "Habakkuk": "hab",
+  "Zephaniah": "zep",
+  "Haggai": "hag",
+  "Zechariah": "zec",
+  "Malachi": "mal",
+  "Matthew": "mat",
+  "Mark": "mrk",
+  "Luke": "luk",
+  "John": "jhn",
+  "Acts": "act",
+  "Romans": "rom",
+  "1 Corinthians": "1co",
+  "2 Corinthians": "2co",
+  "Galatians": "gal",
+  "Ephesians": "eph",
+  "Philippians": "php",
+  "Colossians": "col",
+  "1 Thessalonians": "1th",
+  "2 Thessalonians": "2th",
+  "1 Timothy": "1ti",
+  "2 Timothy": "2ti",
+  "Titus": "tit",
+  "Philemon": "phm",
+  "Hebrews": "heb",
+  "James": "jas",
+  "1 Peter": "1pe",
+  "2 Peter": "2pe",
+  "1 John": "1jn",
+  "2 John": "2jn",
+  "3 John": "3jn",
+  "Jude": "jud",
+  "Revelation": "rev",
+}
 
 export const oldTestament: BibleBook[] = [
   {
@@ -207,13 +301,6 @@ export const newTestament: BibleBook[] = [
 
 export const allBooks = [...oldTestament, ...newTestament]
 
-// Get numeric book ID for Bolls.life API (1-indexed)
-export function getBookId(bookName: string): number {
-  const index = allBooks.findIndex((b) => b.name === bookName)
-  return index + 1
-}
-
-// Strip Strong's concordance numbers from text (e.g., "<S>7225</S>" -> "")
-export function stripStrongsNumbers(text: string): string {
-  return text.replace(/<S>\d+<\/S>/g, "")
+export function getBookId(bookName: string): string {
+  return BOOK_API_IDS[bookName] ?? bookName.toLowerCase().slice(0, 3)
 }

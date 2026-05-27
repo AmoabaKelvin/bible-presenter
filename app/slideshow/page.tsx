@@ -249,14 +249,7 @@ export default function SlideshowPage() {
             </div>
           ))}
         </div>
-      ) : (
-        <div className="text-center space-y-4">
-          <p className={`text-2xl ${referenceColor}`}>Waiting for verse...</p>
-          <p className={`text-lg ${referenceColor}`}>
-            Select verses in the control panel and click "Project to Slideshow"
-          </p>
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

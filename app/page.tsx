@@ -22,7 +22,8 @@ import {
   oldTestament,
   newTestament,
   getBookId,
-  stripStrongsNumbers,
+  getApiTranslationId,
+  BIBLE_API_BASE,
   BIBLE_VERSIONS,
   type BibleBook,
 } from "@/lib/bible-data"
@@ -303,16 +304,16 @@ export default function ControlPanel() {
     setLoading(true)
     try {
       const bookId = getBookId(book)
+      const translation = getApiTranslationId(selectedVersion)
       const response = await fetch(
-        `https://bolls.life/get-verse/${selectedVersion}/${bookId}/${chapter}/${verse}/`
+        `${BIBLE_API_BASE}/verses/${bookId}.${chapter}.${verse}?translation=${translation}`
       )
       const data = await response.json()
       if (data.text) {
-        const verseText = stripStrongsNumbers(data.text).trim()
+        const verseText = String(data.text).trim()
         const reference = `${book} ${chapter}:${verse}`
         setCurrentVerseText(verseText)
         setCurrentReference(reference)
-        // Update previewVerses so the UI reflects the new version
         const newVerse: SelectedVerse = {
           id: `${book}-${chapter}-${verse}`,
           book,
@@ -338,41 +339,37 @@ export default function ControlPanel() {
     setLoading(true)
     try {
       const bookId = getBookId(book)
-      const verses: SelectedVerse[] = []
-      const texts: string[] = []
+      const translation = getApiTranslationId(selectedVersion)
+      const ref =
+        startVerse === endVerse
+          ? `${bookId}.${chapter}.${startVerse}`
+          : `${bookId}.${chapter}.${startVerse}-${endVerse}`
+      const response = await fetch(
+        `${BIBLE_API_BASE}/verses/${ref}?translation=${translation}`
+      )
+      const data = await response.json()
 
-      // Fetch all verses in the range
-      for (let v = startVerse; v <= endVerse; v++) {
-        const response = await fetch(
-          `https://bolls.life/get-verse/${selectedVersion}/${bookId}/${chapter}/${v}/`
-        )
-        const data = await response.json()
-        if (data.text) {
-          const verseText = stripStrongsNumbers(data.text).trim()
-          texts.push(`<sup class="text-blue-500 font-semibold mr-1">${v}</sup>${verseText}`)
-          verses.push({
-            id: `${book}-${chapter}-${v}`,
-            book,
-            chapter,
-            verse: v,
-            text: verseText,
-            reference: `${book} ${chapter}:${v}`,
-            version: selectedVersion,
-          })
-        }
-      }
+      const items: { number: number; text: string }[] = Array.isArray(data.verses)
+        ? data.verses
+        : data.text
+          ? [{ number: startVerse, text: data.text }]
+          : []
 
-      if (texts.length > 0) {
-        // Combine all verse texts
-        const combinedText = texts.join(" ")
-        const reference = startVerse === endVerse
-          ? `${book} ${chapter}:${startVerse}`
-          : `${book} ${chapter}:${startVerse}-${endVerse}`
+      if (items.length > 0) {
+        const combinedText = items
+          .map(
+            (v) =>
+              `<sup class="text-blue-500 font-semibold mr-1">${v.number}</sup>${String(v.text).trim()}`
+          )
+          .join(" ")
+        const reference =
+          startVerse === endVerse
+            ? `${book} ${chapter}:${startVerse}`
+            : `${book} ${chapter}:${startVerse}-${endVerse}`
 
         setCurrentVerseText(combinedText)
         setCurrentReference(reference)
 
-        // Create a single combined verse for preview
         const combinedVerse: SelectedVerse = {
           id: `${book}-${chapter}-${startVerse}-${endVerse}`,
           book,
@@ -653,13 +650,14 @@ export default function ControlPanel() {
 
     try {
       const bookId = getBookId(selectedBook.name)
+      const translation = getApiTranslationId(selectedVersion)
       const response = await fetch(
-        `https://bolls.life/get-verse/${selectedVersion}/${bookId}/${selectedChapter}/${verse}/`
+        `${BIBLE_API_BASE}/verses/${bookId}.${selectedChapter}.${verse}?translation=${translation}`
       )
       const data = await response.json()
 
       if (data.text) {
-        const verseText = stripStrongsNumbers(data.text).trim()
+        const verseText = String(data.text).trim()
         const reference = `${selectedBook.name} ${selectedChapter}:${verse}`
 
         setCurrentVerseText(verseText)
@@ -711,13 +709,14 @@ export default function ControlPanel() {
 
     try {
       const bookId = getBookId(selectedBook.name)
+      const translation = getApiTranslationId(selectedVersion)
       const response = await fetch(
-        `https://bolls.life/get-verse/${selectedVersion}/${bookId}/${selectedChapter}/${verse}/`
+        `${BIBLE_API_BASE}/verses/${bookId}.${selectedChapter}.${verse}?translation=${translation}`
       )
       const data = await response.json()
 
       if (data.text) {
-        const verseText = stripStrongsNumbers(data.text).trim()
+        const verseText = String(data.text).trim()
         const reference = `${selectedBook.name} ${selectedChapter}:${verse}`
 
         setCurrentVerseText(verseText)
