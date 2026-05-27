@@ -1,11 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import ReactMarkdown from "react-markdown"
-import rehypeRaw from "rehype-raw"
 import { HexColorPicker } from "react-colorful"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
@@ -27,18 +25,7 @@ import {
   BIBLE_VERSIONS,
   type BibleBook,
 } from "@/lib/bible-data"
-
-type FontSize = "small" | "medium" | "large" | "extra-large"
-
-interface SelectedVerse {
-  id: string
-  book: string
-  chapter: number
-  verse: number
-  text: string
-  reference: string
-  version?: string
-}
+import { SlideStage, SlideContent, type FontSize, type SelectedVerse } from "@/components/slide-stage"
 
 interface VerseData {
   verses: SelectedVerse[]
@@ -239,7 +226,6 @@ export default function ControlPanel() {
       darkMode,
       version: selectedVersion,
       backgroundColor,
-      backgroundImage: backgroundImage || undefined,
     }
     localStorage.setItem("bibleVerseData", JSON.stringify(data))
     window.dispatchEvent(new Event("storage"))
@@ -463,7 +449,6 @@ export default function ControlPanel() {
       darkMode,
       version: selectedVersion,
       backgroundColor,
-      backgroundImage: backgroundImage || undefined,
     }
     localStorage.setItem("bibleVerseData", JSON.stringify(data))
     window.dispatchEvent(new Event("storage"))
@@ -495,7 +480,6 @@ export default function ControlPanel() {
       darkMode,
       version: selectedVersion,
       backgroundColor,
-      backgroundImage: backgroundImage || undefined,
     }
     localStorage.setItem("bibleVerseData", JSON.stringify(noteData))
     window.dispatchEvent(new Event("storage"))
@@ -533,8 +517,6 @@ export default function ControlPanel() {
     }
     setPreviewVerses([noteVerse])
   }
-
-  const isNote = (verse: SelectedVerse) => verse.id.startsWith("note-") || verse.id.startsWith("history-")
 
   const fontSizeOptions: { value: FontSize; label: string }[] = [
     { value: "small", label: "S" },
@@ -578,26 +560,6 @@ export default function ControlPanel() {
   const handleResetBackground = () => {
     setBackgroundColor("#000000")
     setBackgroundImage(null)
-  }
-
-  const getTextColorForBackground = (bgColor: string) => {
-    // Convert hex to RGB
-    const hex = bgColor.replace("#", "")
-    const r = parseInt(hex.substring(0, 2), 16)
-    const g = parseInt(hex.substring(2, 4), 16)
-    const b = parseInt(hex.substring(4, 6), 16)
-    // Calculate luminance
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-    return luminance > 0.5 ? "text-gray-900" : "text-white"
-  }
-
-  const getReferenceColorForBackground = (bgColor: string) => {
-    const hex = bgColor.replace("#", "")
-    const r = parseInt(hex.substring(0, 2), 16)
-    const g = parseInt(hex.substring(2, 4), 16)
-    const b = parseInt(hex.substring(4, 6), 16)
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-    return luminance > 0.5 ? "text-gray-600" : "text-gray-400"
   }
 
   // Filter books based on search query
@@ -694,7 +656,6 @@ export default function ControlPanel() {
         darkMode,
         version: selectedVersion,
         backgroundColor,
-        backgroundImage: backgroundImage || undefined,
       }
       localStorage.setItem("bibleVerseData", JSON.stringify(verseData))
       window.dispatchEvent(new Event("storage"))
@@ -740,7 +701,6 @@ export default function ControlPanel() {
           darkMode,
           version: selectedVersion,
           backgroundColor,
-          backgroundImage: backgroundImage || undefined,
         }
         localStorage.setItem("bibleVerseData", JSON.stringify(verseData))
         window.dispatchEvent(new Event("storage"))
@@ -1010,127 +970,33 @@ export default function ControlPanel() {
                 </Button>
               </div>
             </div>
-            <Card
-              className={`w-full flex-1 aspect-video overflow-hidden transition-colors ${themeLoaded ? (backgroundImage ? "text-white" : getTextColorForBackground(backgroundColor)) : "text-white"}`}
-              style={{
-                backgroundColor: themeLoaded ? backgroundColor : "#171717",
-                backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
-              <CardContent className="h-full flex flex-col justify-center items-center text-center p-4 xl:p-6 max-w-full overflow-auto">
-                {loading ? (
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-                ) : previewVerses.length > 0 ? (
-                  <div className="space-y-4" ref={previewContentRef}>
-                    {previewVerses.map((v) => (
-                      <div key={v.id} data-verse-id={v.id}>
-                        {isNote(v) ? (
-                          <>
-                            {v.reference && (
-                              <p
-                                className={`font-bold mb-4 ${
-                                  fontSize === "small"
-                                    ? "text-sm"
-                                    : fontSize === "medium"
-                                      ? "text-base"
-                                      : fontSize === "large"
-                                        ? "text-lg"
-                                        : "text-2xl"
-                                }`}
-                              >
-                                {v.reference}
-                              </p>
-                            )}
-                            <div
-                              data-verse-text
-                              className={`leading-relaxed font-serif prose max-w-none prose-ol:list-inside prose-ul:list-inside prose-ol:pl-0 prose-ul:pl-0 ${backgroundImage || getTextColorForBackground(backgroundColor) === "text-white" ? "prose-invert" : ""} ${
-                                fontSize === "small"
-                                  ? "prose-sm"
-                                  : fontSize === "medium"
-                                    ? "prose-base"
-                                    : fontSize === "large"
-                                      ? "prose-lg"
-                                      : "prose-xl"
-                              }`}
-                            >
-                              <ReactMarkdown rehypePlugins={[rehypeRaw]}>{v.text}</ReactMarkdown>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <p
-                              data-verse-text
-                              className={`leading-relaxed font-serif ${
-                                v.reference ? "text-balance" : "whitespace-pre-wrap"
-                              } ${
-                                fontSize === "small"
-                                  ? "text-sm"
-                                  : fontSize === "medium"
-                                    ? "text-base"
-                                    : fontSize === "large"
-                                      ? "text-lg"
-                                      : "text-2xl"
-                              }`}
-                              dangerouslySetInnerHTML={{ __html: v.text }}
-                            />
-                            {v.reference && (
-                              <p
-                                className={`mt-4 font-bold italic ${themeLoaded ? (backgroundImage ? "text-gray-300" : getReferenceColorForBackground(backgroundColor)) : "text-gray-400"} ${
-                                  fontSize === "small"
-                                    ? "text-sm"
-                                    : fontSize === "medium"
-                                      ? "text-base"
-                                      : fontSize === "large"
-                                        ? "text-lg"
-                                        : "text-xl"
-                                }`}
-                              >
-                                {v.reference} ({v.version || "KJV"})
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : currentVerseText ? (
-                  <div>
-                    <p
-                      className={`leading-relaxed font-serif ${
-                        currentReference ? "text-balance" : "whitespace-pre-wrap"
-                      } ${
-                        fontSize === "small"
-                          ? "text-sm"
-                          : fontSize === "medium"
-                            ? "text-base"
-                            : fontSize === "large"
-                              ? "text-lg"
-                              : "text-2xl"
-                      }`}
-                      dangerouslySetInnerHTML={{ __html: currentVerseText }}
-                    />
-                    {currentReference && (
-                      <p
-                        className={`mt-4 font-bold italic ${themeLoaded ? (backgroundImage ? "text-gray-300" : getReferenceColorForBackground(backgroundColor)) : "text-gray-400"} ${
-                          fontSize === "small"
-                            ? "text-sm"
-                            : fontSize === "medium"
-                              ? "text-base"
-                              : fontSize === "large"
-                                ? "text-lg"
-                                : "text-xl"
-                        }`}
-                      >
-                        {currentReference} ({selectedVersion})
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">Select a verse to preview</p>
+            <Card className="w-full flex-1 aspect-video overflow-hidden p-0 relative">
+              <SlideStage
+                backgroundColor={themeLoaded ? backgroundColor : "#171717"}
+                backgroundImage={backgroundImage}
+                className="w-full h-full"
+              >
+                {previewVerses.length > 0 && (
+                  <SlideContent
+                    verses={previewVerses}
+                    fontSize={fontSize}
+                    backgroundColor={themeLoaded ? backgroundColor : "#171717"}
+                    backgroundImage={backgroundImage}
+                    defaultVersion={selectedVersion}
+                    innerRef={previewContentRef}
+                  />
                 )}
-              </CardContent>
+              </SlideStage>
+              {loading && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {!loading && previewVerses.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <p className="text-muted-foreground text-sm">Select a verse to preview</p>
+                </div>
+              )}
             </Card>
           </div>
 
@@ -1159,91 +1025,27 @@ export default function ControlPanel() {
                 </Button>
               </div>
             </div>
-            <Card
-              className={`w-full flex-1 aspect-video border-2 border-red-500 overflow-hidden transition-colors ${themeLoaded ? (backgroundImage ? "text-white" : getTextColorForBackground(backgroundColor)) : "text-white"}`}
-              style={{
-                backgroundColor: themeLoaded ? backgroundColor : "#171717",
-                backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
-              <CardContent className="h-full flex flex-col justify-center items-center text-center p-4 xl:p-6 max-w-full overflow-auto">
-                {liveVerses.length > 0 ? (
-                  <div className="space-y-4">
-                    {liveVerses.map((v) => (
-                      <div key={v.id}>
-                        {isNote(v) ? (
-                          <>
-                            {v.reference && (
-                              <p
-                                className={`font-bold mb-4 ${
-                                  fontSize === "small"
-                                    ? "text-sm"
-                                    : fontSize === "medium"
-                                      ? "text-base"
-                                      : fontSize === "large"
-                                        ? "text-lg"
-                                        : "text-2xl"
-                                }`}
-                              >
-                                {v.reference}
-                              </p>
-                            )}
-                            <div
-                              className={`leading-relaxed font-serif prose max-w-none prose-ol:list-inside prose-ul:list-inside prose-ol:pl-0 prose-ul:pl-0 ${backgroundImage || getTextColorForBackground(backgroundColor) === "text-white" ? "prose-invert" : ""} ${
-                                fontSize === "small"
-                                  ? "prose-sm"
-                                  : fontSize === "medium"
-                                    ? "prose-base"
-                                    : fontSize === "large"
-                                      ? "prose-lg"
-                                      : "prose-xl"
-                              }`}
-                            >
-                              <ReactMarkdown rehypePlugins={[rehypeRaw]}>{v.text}</ReactMarkdown>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <p
-                              className={`leading-relaxed font-serif ${
-                                v.reference ? "text-balance" : "whitespace-pre-wrap"
-                              } ${
-                                fontSize === "small"
-                                  ? "text-sm"
-                                  : fontSize === "medium"
-                                    ? "text-base"
-                                    : fontSize === "large"
-                                      ? "text-lg"
-                                      : "text-2xl"
-                              }`}
-                              dangerouslySetInnerHTML={{ __html: v.text }}
-                            />
-                            {v.reference && (
-                              <p
-                                className={`mt-4 font-bold italic ${themeLoaded ? (backgroundImage ? "text-gray-300" : getReferenceColorForBackground(backgroundColor)) : "text-gray-400"} ${
-                                  fontSize === "small"
-                                    ? "text-sm"
-                                    : fontSize === "medium"
-                                      ? "text-base"
-                                      : fontSize === "large"
-                                        ? "text-lg"
-                                        : "text-xl"
-                                }`}
-                              >
-                                {v.reference} ({v.version || "KJV"})
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">Nothing is live</p>
+            <Card className="w-full flex-1 aspect-video border-2 border-red-500 overflow-hidden p-0 relative">
+              <SlideStage
+                backgroundColor={themeLoaded ? backgroundColor : "#171717"}
+                backgroundImage={backgroundImage}
+                className="w-full h-full"
+              >
+                {liveVerses.length > 0 && (
+                  <SlideContent
+                    verses={liveVerses}
+                    fontSize={fontSize}
+                    backgroundColor={themeLoaded ? backgroundColor : "#171717"}
+                    backgroundImage={backgroundImage}
+                    defaultVersion={selectedVersion}
+                  />
                 )}
-              </CardContent>
+              </SlideStage>
+              {liveVerses.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <p className="text-muted-foreground text-sm">Nothing is live</p>
+                </div>
+              )}
             </Card>
           </div>
         </div>
