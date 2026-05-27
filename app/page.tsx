@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ExternalLink, Moon, Sun, Book, BookOpen, Loader2, X, Plus, FileText, History, Bold, Italic, Underline, List, ListOrdered, Check, ImageIcon, RotateCcw } from "lucide-react"
+import { ExternalLink, Moon, Sun, Book, BookOpen, Loader2, X, XCircle, Plus, FileText, History, Bold, Italic, Underline, List, ListOrdered, Check, ImageIcon, RotateCcw, Highlighter } from "lucide-react"
 import {
   oldTestament,
   newTestament,
@@ -83,6 +83,63 @@ export default function ControlPanel() {
   const [selectedVersion, setSelectedVersion] = useState("KJV")
   const [bookSearch, setBookSearch] = useState("")
   const noteTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const previewContentRef = useRef<HTMLDivElement>(null)
+
+  const HIGHLIGHT_COLORS = [
+    { value: "rgba(250, 204, 21, 0.55)", swatch: "#facc15", label: "Yellow" },
+    { value: "rgba(74, 222, 128, 0.55)", swatch: "#4ade80", label: "Green" },
+    { value: "rgba(96, 165, 250, 0.55)", swatch: "#60a5fa", label: "Blue" },
+    { value: "rgba(244, 114, 182, 0.55)", swatch: "#f472b6", label: "Pink" },
+    { value: "rgba(251, 146, 60, 0.55)", swatch: "#fb923c", label: "Orange" },
+  ]
+
+  const applyHighlight = (color: string) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return
+
+    const range = selection.getRangeAt(0)
+    const container = previewContentRef.current
+    if (!container || !container.contains(range.commonAncestorContainer)) return
+
+    let verseNode: HTMLElement | null = null
+    let node: Node | null = range.commonAncestorContainer
+    while (node && node !== container) {
+      if (node instanceof HTMLElement && node.dataset.verseId) {
+        verseNode = node
+        break
+      }
+      node = node.parentNode
+    }
+    if (!verseNode) return
+
+    const textEl = verseNode.querySelector<HTMLElement>("[data-verse-text]")
+    if (!textEl || !textEl.contains(range.commonAncestorContainer)) return
+
+    const mark = document.createElement("mark")
+    mark.style.backgroundColor = color
+    mark.style.color = "inherit"
+    mark.style.padding = "0 2px"
+    mark.style.borderRadius = "2px"
+
+    try {
+      range.surroundContents(mark)
+    } catch {
+      const frag = range.extractContents()
+      mark.appendChild(frag)
+      range.insertNode(mark)
+    }
+
+    const verseId = verseNode.dataset.verseId
+    const newHtml = textEl.innerHTML
+    setPreviewVerses((prev) => prev.map((v) => (v.id === verseId ? { ...v, text: newHtml } : v)))
+    selection.removeAllRanges()
+  }
+
+  const clearHighlights = () => {
+    const stripMarks = (html: string) =>
+      html.replace(/<mark\b[^>]*>([\s\S]*?)<\/mark>/gi, "$1")
+    setPreviewVerses((prev) => prev.map((v) => ({ ...v, text: stripMarks(v.text) })))
+  }
 
   const insertFormatting = (prefix: string, suffix: string = prefix) => {
     const textarea = noteTextareaRef.current
@@ -764,7 +821,13 @@ export default function ControlPanel() {
               variant="outline"
               size="sm"
               className="h-7 w-7 p-0 bg-transparent"
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={() => {
+                const next = !darkMode
+                setDarkMode(next)
+                setBackgroundColor(next ? "#000000" : "#FFFFFF")
+                setBackgroundImage(null)
+              }}
+              title={darkMode ? "Switch to light" : "Switch to dark"}
             >
               {darkMode ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
             </Button>
@@ -907,16 +970,46 @@ export default function ControlPanel() {
         <div className="flex-1 min-h-0 p-4 xl:p-6 flex flex-col gap-4 overflow-hidden justify-center items-center">
           {/* Preview Panel */}
           <div className="w-full max-h-[45%] flex flex-col">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <span className="text-sm font-medium">Preview</span>
-              <Button
-                size="sm"
-                className="h-7"
-                onClick={goLive}
-                disabled={previewVerses.length === 0 && !currentVerseText}
-              >
-                Go Live
-              </Button>
+              <div className="flex items-center gap-2">
+                <div
+                  className="flex items-center gap-1 px-2 py-1 rounded-md border border-border bg-background"
+                  title="Select text in the preview, then pick a color"
+                >
+                  <Highlighter className="h-3 w-3 text-muted-foreground" />
+                  {HIGHLIGHT_COLORS.map((c) => (
+                    <button
+                      key={c.swatch}
+                      type="button"
+                      className="h-4 w-4 rounded-sm border border-border/60 hover:scale-110 transition-transform"
+                      style={{ backgroundColor: c.swatch }}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => applyHighlight(c.value)}
+                      title={`Highlight ${c.label}`}
+                      aria-label={`Highlight ${c.label}`}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    className="h-4 w-4 rounded-sm border border-border/60 flex items-center justify-center text-muted-foreground hover:bg-muted"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={clearHighlights}
+                    title="Clear all highlights"
+                    aria-label="Clear all highlights"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+                <Button
+                  size="sm"
+                  className="h-7"
+                  onClick={goLive}
+                  disabled={previewVerses.length === 0 && !currentVerseText}
+                >
+                  Go Live
+                </Button>
+              </div>
             </div>
             <Card
               className={`w-full flex-1 aspect-video overflow-hidden transition-colors ${themeLoaded ? (backgroundImage ? "text-white" : getTextColorForBackground(backgroundColor)) : "text-white"}`}
@@ -931,9 +1024,9 @@ export default function ControlPanel() {
                 {loading ? (
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                 ) : previewVerses.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-4" ref={previewContentRef}>
                     {previewVerses.map((v) => (
-                      <div key={v.id}>
+                      <div key={v.id} data-verse-id={v.id}>
                         {isNote(v) ? (
                           <>
                             {v.reference && (
@@ -952,6 +1045,7 @@ export default function ControlPanel() {
                               </p>
                             )}
                             <div
+                              data-verse-text
                               className={`leading-relaxed font-serif prose max-w-none prose-ol:list-inside prose-ul:list-inside prose-ol:pl-0 prose-ul:pl-0 ${backgroundImage || getTextColorForBackground(backgroundColor) === "text-white" ? "prose-invert" : ""} ${
                                 fontSize === "small"
                                   ? "prose-sm"
@@ -968,6 +1062,7 @@ export default function ControlPanel() {
                         ) : (
                           <>
                             <p
+                              data-verse-text
                               className={`leading-relaxed font-serif ${
                                 v.reference ? "text-balance" : "whitespace-pre-wrap"
                               } ${
