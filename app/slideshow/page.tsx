@@ -301,9 +301,14 @@ export default function SlideshowPage() {
         return
       }
       globalPlayer = new YT.Player("yt-player", {
-        height: "1",
-        width: "1",
+        height: "200",
+        width: "200",
+        // Setting `origin` is required in production for the YT IFrame
+        // postMessage handshake — without it `onReady` may never fire
+        // on https domains. Bumping the iframe past 1x1 also avoids
+        // some browsers' aggressive throttling of zero-size frames.
         playerVars: {
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
           controls: 0,
           disablekb: 1,
           modestbranding: 1,
@@ -395,17 +400,18 @@ export default function SlideshowPage() {
         )}
       </SlideStage>
 
-      {/* Hidden YouTube IFrame player — receives commands, audio plays here */}
+      {/* Hidden YouTube IFrame player — receives commands, audio plays here.
+          Kept visually offscreen rather than 1×1 so browsers don't throttle it. */}
       <div
         aria-hidden
         style={{
           position: "fixed",
-          width: 1,
-          height: 1,
+          width: 200,
+          height: 200,
           opacity: 0,
           pointerEvents: "none",
-          bottom: 0,
-          right: 0,
+          left: -9999,
+          top: -9999,
         }}
       >
         <div id="yt-player" />
