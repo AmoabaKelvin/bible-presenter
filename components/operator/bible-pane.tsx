@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState } from "react"
 import { ChevronRight, Search, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import {
@@ -17,8 +17,6 @@ import {
 } from "@/components/ui/popover"
 import {
   BIBLE_VERSIONS,
-  oldTestament,
-  newTestament,
   getPrevChapterRef,
   getNextChapterRef,
   type BibleBook,
@@ -27,6 +25,7 @@ import {
 import { BookGrid } from "./book-grid"
 import { ChapterGrid } from "./chapter-grid"
 import { ChapterReader, type ChapterVerse } from "./chapter-reader"
+import { ScriptureTypeahead } from "./scripture-typeahead"
 
 interface BiblePaneProps {
   selectedBook: BibleBook | null
@@ -40,12 +39,11 @@ interface BiblePaneProps {
   chapterError: string | null
   onVersionChange: (v: string) => void
   onReferenceChange: (book: BibleBook | null, chapter: number | null, verse?: number) => void
+  onJumpProject: (book: BibleBook, chapter: number, verse: number) => void
   onSelectVerse: (verse: number, shiftKey: boolean) => void
   onDoubleClickVerse: (verse: number) => void
   onQueueVerse: (verse: number) => void
 }
-
-const ALL_BOOKS = [...oldTestament, ...newTestament]
 
 export function BiblePane({
   selectedBook,
@@ -59,13 +57,12 @@ export function BiblePane({
   chapterError,
   onVersionChange,
   onReferenceChange,
+  onJumpProject,
   onSelectVerse,
   onDoubleClickVerse,
   onQueueVerse,
 }: BiblePaneProps) {
   const [bookQuery, setBookQuery] = useState("")
-  const [jump, setJump] = useState("")
-  const [jumpError, setJumpError] = useState(false)
 
   // View state machine:
   // - no book → books grid
@@ -78,42 +75,6 @@ export function BiblePane({
   const handleBackToChapters = () => {
     if (selectedBook) onReferenceChange(selectedBook, null)
   }
-
-  const handleJump = () => {
-    const raw = jump.trim()
-    if (!raw) return
-    // "John 3:16" | "Gen 1" | "1 John 2:5"
-    const m = raw.match(/^([1-3]?\s?[A-Za-z .]+?)\s+(\d+)(?::(\d+))?$/)
-    if (!m) {
-      setJumpError(true)
-      return
-    }
-    const bookGuess = m[1].trim().toLowerCase()
-    const chRequested = Number(m[2])
-    const vRequested = m[3] ? Number(m[3]) : undefined
-    const match =
-      ALL_BOOKS.find((b) => b.name.toLowerCase() === bookGuess) ||
-      ALL_BOOKS.find((b) => b.name.toLowerCase().startsWith(bookGuess))
-    if (!match) {
-      setJumpError(true)
-      return
-    }
-    const ch = Math.min(Math.max(chRequested, 1), match.chapters.length)
-    const verseCount = match.chapters[ch - 1]
-    const verse =
-      vRequested !== undefined
-        ? Math.min(Math.max(vRequested, 1), verseCount)
-        : undefined
-    onReferenceChange(match, ch, verse)
-    setJump("")
-    setJumpError(false)
-  }
-
-  // Clear jump error as user types
-  useEffect(() => {
-    if (jumpError) setJumpError(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jump])
 
   return (
     <div className="h-full flex flex-col">
@@ -129,26 +90,10 @@ export function BiblePane({
 
         <div className="flex-1" />
 
-        <div className="relative">
-          <Search
-            className={`absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 ${
-              jumpError ? "text-destructive" : "text-muted-foreground"
-            }`}
-          />
-          <Input
-            value={jump}
-            onChange={(e) => setJump(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleJump()
-              if (e.key === "Escape") {
-                setJump("")
-                setJumpError(false)
-              }
-            }}
-            placeholder="Jump — e.g. John 3:16"
-            className={`h-9 text-sm pl-8 w-[240px] ${jumpError ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
-          />
-        </div>
+        <ScriptureTypeahead
+          onProject={onJumpProject}
+          onNavigate={(book, chapter) => onReferenceChange(book, chapter)}
+        />
 
         <Select value={version} onValueChange={onVersionChange}>
           <SelectTrigger size="sm" className="h-9 w-auto min-w-0 px-2.5 gap-1.5 text-xs font-mono">

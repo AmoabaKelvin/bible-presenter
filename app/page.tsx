@@ -54,6 +54,11 @@ export default function OperatorPage() {
   const [chapterLoading, setChapterLoading] = useState(false)
   const [chapterError, setChapterError] = useState<string | null>(null)
   const [pendingVerseSelection, setPendingVerseSelection] = useState<number | null>(null)
+  // Set by the jump-to-passage typeahead. Builds + projects the verse to live
+  // as soon as chapterVerses for the target reference populates.
+  const [pendingProjectVerse, setPendingProjectVerse] = useState<
+    { book: BibleBook; chapter: number; verse: number } | null
+  >(null)
 
   // Presentation
   const [previewVerses, setPreviewVerses] = useState<SelectedVerse[]>([])
@@ -358,6 +363,47 @@ export default function OperatorPage() {
     setPendingVerseSelection(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterVerses, pendingVerseSelection])
+
+  // Drive a jump from the typeahead all the way to live projection.
+  const handleJumpProject = (
+    book: BibleBook,
+    chapter: number,
+    verse: number,
+  ) => {
+    // Reuse the existing nav handler so the reader view + breadcrumb update.
+    handleReferenceChange(book, chapter)
+    setPendingProjectVerse({ book, chapter, verse })
+  }
+
+  // Once the chapter text for the target reference is loaded, build the verse,
+  // push it to live, write to output, and record history. Require the
+  // currently-loaded chapter to MATCH the pending reference so we don't
+  // project stale text from a previously-viewed chapter.
+  useEffect(() => {
+    if (!pendingProjectVerse) return
+    if (chapterVerses.length === 0) return
+    if (
+      !selectedBook ||
+      selectedBook.name !== pendingProjectVerse.book.name ||
+      selectedChapter !== pendingProjectVerse.chapter
+    ) {
+      return
+    }
+    const { verse } = pendingProjectVerse
+    const list = buildSelectedVerses(verse, verse)
+    if (list.length === 0) return
+    setSelectedVerse(verse)
+    setRangeStartVerse(verse)
+    setRangeEndVerse(null)
+    setPreviewMediaUrl(null)
+    setLiveMediaUrl(null)
+    setPreviewVerses(list)
+    setLiveVerses(list)
+    writeToOutput({ verses: list })
+    list.forEach((v) => addToHistory(v.text, v.reference, v.version))
+    setPendingProjectVerse(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterVerses, pendingProjectVerse, selectedBook, selectedChapter])
 
   const handleSelectVerse = (verse: number, shiftKey: boolean) => {
     if (!selectedBook || !selectedChapter) return
@@ -769,6 +815,7 @@ export default function OperatorPage() {
             chapterError={chapterError}
             onVersionChange={setVersion}
             onReferenceChange={handleReferenceChange}
+            onJumpProject={handleJumpProject}
             onSelectVerse={handleSelectVerse}
             onDoubleClickVerse={handleDoubleClickVerse}
             onQueueVerse={queueVerseFromChapter}
