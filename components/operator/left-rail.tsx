@@ -1,9 +1,10 @@
 "use client"
 
-import { Book, FileText, Image as ImageIcon, BookMarked } from "lucide-react"
+import { Book, FileText, Image as ImageIcon } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
 import { QueuePane } from "./queue-pane"
 import { RecentSection } from "./recent-section"
+import { BrandLogo } from "./brand"
 import type { Mode, HistoryItem } from "./types"
 import type { SelectedVerse } from "@/components/slide-stage"
 
@@ -48,13 +49,8 @@ export function LeftRail({
 }: LeftRailProps) {
   return (
     <aside className="w-[320px] shrink-0 h-full border-r border-border bg-card/30 flex flex-col">
-      <div className="h-14 shrink-0 px-4 flex items-center gap-2 border-b border-border">
-        <div className="size-7 grid place-items-center rounded-md bg-foreground text-background">
-          <BookMarked className="size-3.5" />
-        </div>
-        <div className="leading-none">
-          <div className="text-[13px] font-medium tracking-tight">flowwww</div>
-        </div>
+      <div className="h-14 shrink-0 px-4 flex items-center border-b border-border">
+        <BrandLogo />
       </div>
 
       <nav className="p-2 border-b border-border">

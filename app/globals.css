@@ -113,6 +113,10 @@
 }
 
 @layer components {
+  .font-wordmark {
+    font-family: var(--font-wordmark), Georgia, serif;
+  }
+
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 10.5px;
