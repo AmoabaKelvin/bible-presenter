@@ -48,12 +48,19 @@ import {
   type YouTubePlaylistSummary,
   type YouTubePlaylistTrack,
 } from "@/lib/youtube-account"
-import { storeImage, resolveImageUrl, removeImage } from "@/lib/image-store"
+import {
+  storeImage,
+  resolveImageUrl,
+  resolveBackgroundMedia,
+  removeImage,
+  type BackgroundMediaKind,
+} from "@/lib/image-store"
 
 const HISTORY_KEY = "biblePresenterHistory"
 const VERSION_KEY = "bibleVersion"
 const BG_COLOR_KEY = "biblePresenterBackgroundColor"
 const BG_IMAGE_KEY = "biblePresenterBackgroundImage"
+const BG_KIND_KEY = "biblePresenterBackgroundKind"
 const MEDIA_KEY = "biblePresenterMedia"
 const QUEUE_KEY = "biblePresenterQueue"
 const QUEUE_CURSOR_KEY = "biblePresenterQueueCursor"
@@ -99,6 +106,7 @@ export default function OperatorPage() {
   // resolved object URL used for rendering in this tab.
   const [backgroundImageId, setBackgroundImageId] = useState<string | null>(null)
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null)
+  const [backgroundKind, setBackgroundKind] = useState<BackgroundMediaKind | null>(null)
   const [themeLoaded, setThemeLoaded] = useState(false)
 
   // Notes
@@ -130,7 +138,11 @@ export default function OperatorPage() {
       const bgImg = localStorage.getItem(BG_IMAGE_KEY)
       if (bgImg) {
         setBackgroundImageId(bgImg)
-        resolveImageUrl(bgImg).then((u) => setBackgroundImageUrl(u))
+        resolveBackgroundMedia(bgImg).then((m) => {
+          if (!m) return
+          setBackgroundImageUrl(m.url)
+          setBackgroundKind(m.kind)
+        })
       }
       const m = localStorage.getItem(MEDIA_KEY)
       if (m) setMedia(JSON.parse(m))
@@ -169,12 +181,17 @@ export default function OperatorPage() {
   useEffect(() => {
     if (!themeLoaded) return
     try {
-      if (backgroundImageId) localStorage.setItem(BG_IMAGE_KEY, backgroundImageId)
-      else localStorage.removeItem(BG_IMAGE_KEY)
+      if (backgroundImageId) {
+        localStorage.setItem(BG_IMAGE_KEY, backgroundImageId)
+        localStorage.setItem(BG_KIND_KEY, backgroundKind ?? "image")
+      } else {
+        localStorage.removeItem(BG_IMAGE_KEY)
+        localStorage.removeItem(BG_KIND_KEY)
+      }
     } catch (err) {
       console.error("flowwww: failed to persist background", err)
     }
-  }, [backgroundImageId, themeLoaded])
+  }, [backgroundImageId, backgroundKind, themeLoaded])
   useEffect(() => {
     if (themeLoaded) localStorage.setItem(MEDIA_KEY, JSON.stringify(media))
   }, [media, themeLoaded])
@@ -1061,6 +1078,7 @@ export default function OperatorPage() {
       const url = await resolveImageUrl(id)
       setBackgroundImageId(id)
       setBackgroundImageUrl(url)
+      setBackgroundKind(file.type.startsWith("video/") ? "video" : "image")
     } catch (err) {
       console.error("flowwww: failed to store background", err)
     }
@@ -1068,6 +1086,7 @@ export default function OperatorPage() {
   const clearBackgroundImage = () => {
     setBackgroundImageId(null)
     setBackgroundImageUrl(null)
+    setBackgroundKind(null)
   }
   const resetBackground = () => {
     setBackgroundColor("#000000")
@@ -1193,6 +1212,7 @@ export default function OperatorPage() {
         backgroundColor={backgroundColor}
         onBackgroundColorChange={setBackgroundColor}
         backgroundImage={backgroundImageUrl}
+        backgroundKind={backgroundKind}
         onUploadBackground={handleBackgroundUpload}
         onClearBackground={clearBackgroundImage}
         onResetBackground={resetBackground}

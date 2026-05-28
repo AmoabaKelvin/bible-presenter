@@ -28,6 +28,7 @@ const PRESETS = [
 interface BackgroundPopoverProps {
   backgroundColor: string
   backgroundImage: string | null
+  backgroundKind: "image" | "video" | null
   onColorChange: (c: string) => void
   onUploadImage: (file: File) => void
   onClearImage: () => void
@@ -37,6 +38,7 @@ interface BackgroundPopoverProps {
 export function BackgroundPopover({
   backgroundColor,
   backgroundImage,
+  backgroundKind,
   onColorChange,
   onUploadImage,
   onClearImage,
@@ -56,15 +58,26 @@ export function BackgroundPopover({
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-              <div
-                className="size-4 rounded-sm border border-border"
-                style={{
-                  backgroundColor: backgroundImage ? undefined : backgroundColor,
-                  backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-              />
+              {backgroundImage && backgroundKind === "video" ? (
+                <video
+                  src={backgroundImage}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="size-4 rounded-sm border border-border object-cover"
+                />
+              ) : (
+                <div
+                  className="size-4 rounded-sm border border-border"
+                  style={{
+                    backgroundColor: backgroundImage ? undefined : backgroundColor,
+                    backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }}
+                />
+              )}
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
@@ -87,10 +100,21 @@ export function BackgroundPopover({
 
         {backgroundImage && (
           <div className="mb-3 relative">
-            <div
-              className="w-full h-20 rounded-md border border-border bg-cover bg-center"
-              style={{ backgroundImage: `url(${backgroundImage})` }}
-            />
+            {backgroundKind === "video" ? (
+              <video
+                src={backgroundImage}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-20 rounded-md border border-border object-cover"
+              />
+            ) : (
+              <div
+                className="w-full h-20 rounded-md border border-border bg-cover bg-center"
+                style={{ backgroundImage: `url(${backgroundImage})` }}
+              />
+            )}
             <Button
               variant="secondary"
               size="sm"
@@ -159,12 +183,12 @@ export function BackgroundPopover({
           onClick={() => fileRef.current?.click()}
         >
           <ImageIcon className="size-3.5 mr-1.5" />
-          Upload image
+          Upload image or video
         </Button>
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           onChange={handleUpload}
           className="hidden"
         />

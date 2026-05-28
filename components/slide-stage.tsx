@@ -68,6 +68,7 @@ function getReferenceColorHex(bgColor: string) {
 interface SlideStageProps {
   backgroundColor: string
   backgroundImage?: string | null
+  backgroundKind?: "image" | "video"
   mediaUrl?: string | null
   className?: string
   children?: ReactNode
@@ -76,6 +77,7 @@ interface SlideStageProps {
 export function SlideStage({
   backgroundColor,
   backgroundImage,
+  backgroundKind = "image",
   mediaUrl,
   className = "",
   children,
@@ -98,18 +100,38 @@ export function SlideStage({
     return () => ro.disconnect()
   }, [])
 
+  const isVideo = backgroundKind === "video" && !!backgroundImage
+
   return (
     <div
       ref={wrapperRef}
       className={`relative overflow-hidden ${className}`}
       style={{
         backgroundColor,
-        backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
+        backgroundImage: backgroundImage && !isVideo ? `url(${backgroundImage})` : undefined,
         backgroundSize: "cover",
         backgroundRepeat: "no-repeat",
         backgroundPosition: "center",
       }}
     >
+      {isVideo && (
+        <video
+          src={backgroundImage ?? undefined}
+          autoPlay
+          loop
+          muted
+          playsInline
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center",
+            pointerEvents: "none",
+          }}
+        />
+      )}
       <div
         style={{
           position: "absolute",
@@ -154,6 +176,7 @@ interface SlideContentProps {
   verses: SelectedVerse[]
   fontSize: FontSize
   backgroundColor: string
+  // Any background media (image OR video) keeps text white for readability.
   backgroundImage?: string | null
   defaultVersion?: string
   innerRef?: Ref<HTMLDivElement>

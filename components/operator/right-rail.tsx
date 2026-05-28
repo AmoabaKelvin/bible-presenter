@@ -22,6 +22,7 @@ interface RightRailProps {
   backgroundColor: string
   onBackgroundColorChange: (c: string) => void
   backgroundImage: string | null
+  backgroundKind: "image" | "video" | null
   onUploadBackground: (file: File) => void
   onClearBackground: () => void
   onResetBackground: () => void
@@ -85,6 +86,7 @@ export function RightRail({
   backgroundColor,
   onBackgroundColorChange,
   backgroundImage,
+  backgroundKind,
   onUploadBackground,
   onClearBackground,
   onResetBackground,
@@ -146,6 +148,7 @@ export function RightRail({
           <BackgroundPopover
             backgroundColor={backgroundColor}
             backgroundImage={backgroundImage}
+            backgroundKind={backgroundKind}
             onColorChange={onBackgroundColorChange}
             onUploadImage={onUploadBackground}
             onClearImage={onClearBackground}
@@ -194,6 +197,7 @@ export function RightRail({
           <SlideStage
             backgroundColor={bg}
             backgroundImage={backgroundImage}
+            backgroundKind={backgroundKind ?? undefined}
             mediaUrl={previewMediaUrl}
             className="w-full h-full"
           >
@@ -262,7 +266,7 @@ export function RightRail({
                   <ExternalLink className="size-3.5" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">Open output window (1920×1080)</TooltipContent>
+              <TooltipContent side="bottom">Open output window — press F there for fullscreen</TooltipContent>
             </Tooltip>
             {isLive && (
               <Tooltip>
@@ -288,6 +292,7 @@ export function RightRail({
           <SlideStage
             backgroundColor={bg}
             backgroundImage={backgroundImage}
+            backgroundKind={backgroundKind ?? undefined}
             mediaUrl={liveMediaUrl}
             className="w-full h-full"
           >

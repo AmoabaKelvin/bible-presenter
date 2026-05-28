@@ -101,6 +101,32 @@ export async function resolveImageUrl(id: string | null | undefined): Promise<st
   }
 }
 
+export type BackgroundMediaKind = "image" | "video"
+
+// Resolve a background id (or direct URL) to both a renderable URL and its
+// media kind, derived from the stored Blob's MIME type. This lets the
+// slideshow render <video> vs CSS background without a separate flag.
+export async function resolveBackgroundMedia(
+  id: string | null | undefined,
+): Promise<{ url: string; kind: BackgroundMediaKind } | null> {
+  if (!id) return null
+  if (id.startsWith("data:")) {
+    const mime = id.slice(5, id.indexOf(";"))
+    return { url: id, kind: mime.startsWith("video/") ? "video" : "image" }
+  }
+  if (isDirectUrl(id)) return { url: id, kind: "image" } // unknown type — assume image
+  try {
+    const blob = await getBlob(id)
+    if (!blob) return null
+    const cached = urlCache.get(id)
+    const url = cached ?? URL.createObjectURL(blob)
+    if (!cached) urlCache.set(id, url)
+    return { url, kind: blob.type.startsWith("video/") ? "video" : "image" }
+  } catch {
+    return null
+  }
+}
+
 export async function removeImage(id: string | null | undefined): Promise<void> {
   if (!id || isDirectUrl(id)) return
   const url = urlCache.get(id)

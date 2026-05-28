@@ -1,13 +1,16 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { Maximize, Minimize } from "lucide-react"
 import {
   SlideStage,
   SlideContent,
   type FontSize,
   type SelectedVerse,
 } from "@/components/slide-stage"
-import { resolveImageUrl } from "@/lib/image-store"
+import { resolveImageUrl, resolveBackgroundMedia, type BackgroundMediaKind } from "@/lib/image-store"
+import { useFullscreen } from "@/hooks/use-fullscreen"
+import { useWakeLock } from "@/hooks/use-wake-lock"
 import {
   DEFAULT_MUSIC_STATE,
   MUSIC_COMMAND_KEY,
@@ -144,7 +147,35 @@ export default function SlideshowPage() {
   })
   const [needsAudioGesture, setNeedsAudioGesture] = useState(false)
   const [bgImageUrl, setBgImageUrl] = useState<string | null>(null)
+  const [bgKind, setBgKind] = useState<BackgroundMediaKind>("image")
   const [mediaImageUrl, setMediaImageUrl] = useState<string | null>(null)
+
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
+  // Keep the projector awake the whole time the output is open.
+  useWakeLock(true)
+
+  // Auto-hide the cursor and the fullscreen control after a moment of
+  // stillness while presenting, so nothing sits on top of the slide.
+  const [controlsVisible, setControlsVisible] = useState(true)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const revealControls = useCallback(() => {
+    setControlsVisible(true)
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 2500)
+  }, [])
+  const cursorHidden = isFullscreen && !controlsVisible
+
+  // `F` toggles fullscreen from the output window.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "f" || e.key === "F") {
+        e.preventDefault()
+        toggleFullscreen()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [toggleFullscreen])
 
   const lastCommandIdRef = useRef<string | null>(null)
   const pendingCommandsRef = useRef<MusicCommand[]>([])
@@ -259,10 +290,14 @@ export default function SlideshowPage() {
   }, [])
 
   // ── Resolve image ids → this tab's object URLs ─────────────────────
+  // The background may be an image or a video; kind is derived from the
+  // stored Blob's MIME (source of truth), so we don't trust a separate flag.
   useEffect(() => {
     let cancelled = false
-    resolveImageUrl(data.backgroundImage).then((url) => {
-      if (!cancelled) setBgImageUrl(url)
+    resolveBackgroundMedia(data.backgroundImage).then((media) => {
+      if (cancelled) return
+      setBgImageUrl(media?.url ?? null)
+      setBgKind(media?.kind ?? "image")
     })
     return () => {
       cancelled = true
@@ -814,12 +849,17 @@ export default function SlideshowPage() {
   const mediaUrl = mediaImageUrl ?? undefined
 
   return (
-    <>
+    <div
+      className={`relative w-screen h-screen overflow-hidden ${cursorHidden ? "cursor-none" : ""}`}
+      onMouseMove={revealControls}
+      onTouchStart={revealControls}
+    >
       <SlideStage
         backgroundColor={backgroundColor}
         backgroundImage={backgroundImage}
+        backgroundKind={bgKind}
         mediaUrl={mediaUrl}
-        className="w-screen h-screen"
+        className="w-full h-full"
       >
         {data.verses.length > 0 && (
           <SlideContent
@@ -877,6 +917,22 @@ export default function SlideshowPage() {
           Click to enable audio
         </button>
       )}
-    </>
+
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen (F)"}
+        title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+        className={`fixed bottom-6 left-6 z-50 size-10 grid place-items-center rounded-full bg-black/50 text-white/90 backdrop-blur-sm shadow-lg hover:bg-black/70 transition-opacity ${
+          controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        {isFullscreen ? (
+          <Minimize className="size-4" />
+        ) : (
+          <Maximize className="size-4" />
+        )}
+      </button>
+    </div>
   )
 }
