@@ -20,6 +20,7 @@ import type { HistoryItem, MediaItem, Mode, VerseData } from "@/components/opera
 import {
   DEFAULT_MUSIC_STATE,
   MUSIC_COMMAND_KEY,
+  MUSIC_PROVIDER_KEY,
   MUSIC_STATE_KEY,
   MUSIC_URL_KEY,
   MUSIC_VOLUME_KEY,
@@ -29,8 +30,18 @@ import {
   type MusicCommandInput,
   type MusicState,
   makeCommandId,
-  parseYouTubeUrl,
 } from "@/lib/youtube-music"
+import {
+  getSpotifyStatus,
+  makeSpotifyLoadCommandFromRef,
+  type SpotifyAuthStatus,
+} from "@/lib/spotify-music"
+import {
+  getYouTubeStatus,
+  type YouTubeAuthStatus,
+  type YouTubePlaylistSummary,
+  type YouTubePlaylistTrack,
+} from "@/lib/youtube-account"
 
 const HISTORY_KEY = "biblePresenterHistory"
 const VERSION_KEY = "bibleVersion"
@@ -85,6 +96,8 @@ export default function OperatorPage() {
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
   const [musicState, setMusicState] = useState<MusicState>(DEFAULT_MUSIC_STATE)
   const [slideshowOnline, setSlideshowOnline] = useState(false)
+  const [spotifyStatus, setSpotifyStatus] = useState<SpotifyAuthStatus>({ connected: false })
+  const [youtubeStatus, setYouTubeStatus] = useState<YouTubeAuthStatus>({ connected: false })
 
   const previewContentRef = useRef<HTMLDivElement>(null)
 
@@ -182,6 +195,39 @@ export default function OperatorPage() {
     }
   }, [])
 
+  // Spotify auth status — fetch on mount and after returning from
+  // /api/spotify/callback (which appends ?spotify=connected|error).
+  useEffect(() => {
+    let cancelled = false
+    const refresh = () => {
+      getSpotifyStatus().then((status) => {
+        if (!cancelled) setSpotifyStatus(status)
+      }).catch(() => {
+        // ignore — status defaults to disconnected
+      })
+      getYouTubeStatus().then((status) => {
+        if (!cancelled) setYouTubeStatus(status)
+      }).catch(() => {
+        // ignore — status defaults to disconnected
+      })
+    }
+    refresh()
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      if (params.has("spotify") || params.has("youtube")) {
+        params.delete("spotify")
+        params.delete("youtube")
+        const next = window.location.pathname + (params.toString() ? `?${params}` : "")
+        window.history.replaceState({}, "", next)
+        // status cookie was just set by a provider callback — refresh
+        refresh()
+      }
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Track whether the slideshow tab is open via its heartbeat
   useEffect(() => {
     const check = () => {
@@ -200,37 +246,151 @@ export default function OperatorPage() {
     localStorage.setItem(MUSIC_COMMAND_KEY, JSON.stringify(full))
   }
 
-  const handleMusicLoad = (rawUrl: string) => {
-    const parsed = parseYouTubeUrl(rawUrl)
-    if (!parsed) return
-    setMusicUrl(rawUrl)
-    setMusicState((s) => ({ ...s, status: "loading", title: undefined, hasPlaylist: !!parsed.playlistId }))
+  // Write optimistic music state both to React state and to the shared
+  // key, so the 500ms poll reads a consistent provider/status during the
+  // window before the slideshow publishes the real state.
+  const setMusicStateOptimistic = (next: MusicState) => {
+    setMusicState(next)
+    try {
+      if (next.provider) localStorage.setItem(MUSIC_PROVIDER_KEY, next.provider)
+      localStorage.setItem(MUSIC_STATE_KEY, JSON.stringify(next))
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleMusicLoadYouTubePlaylist = (playlist: YouTubePlaylistSummary) => {
+    if (!slideshowOnline) openOutputWindow()
+    setMusicUrl(playlist.playlistId)
+    setMusicStateOptimistic({
+      ...musicState,
+      provider: "youtube",
+      status: "loading",
+      title: playlist.title,
+      author: playlist.channelTitle,
+      albumArtUrl: playlist.thumbnailUrl,
+      uri: undefined,
+      videoId: undefined,
+      hasPlaylist: true,
+      playlistVideoIds: undefined,
+      playlistIndex: undefined,
+      errorMessage: undefined,
+    })
     sendMusicCommand({
       type: "load",
-      url: rawUrl,
-      videoId: parsed.videoId,
-      playlistId: parsed.playlistId,
+      provider: "youtube",
+      playlistId: playlist.playlistId,
+      title: playlist.title,
+      author: playlist.channelTitle,
+      thumbnailUrl: playlist.thumbnailUrl,
       autoplay: true,
     })
   }
 
-  const handleMusicPlay = () => sendMusicCommand({ type: "play" })
-  const handleMusicPause = () => sendMusicCommand({ type: "pause" })
-  const handleMusicNext = () => sendMusicCommand({ type: "next" })
-  const handleMusicPrev = () => sendMusicCommand({ type: "prev" })
-  const handleMusicPlayAt = (idx: number) => sendMusicCommand({ type: "playAt", index: idx })
+  const handleMusicLoadYouTubeTrack = (
+    track: YouTubePlaylistTrack,
+    playlist: YouTubePlaylistSummary,
+    index: number,
+  ) => {
+    if (!slideshowOnline) openOutputWindow()
+    setMusicUrl(playlist.playlistId)
+    setMusicStateOptimistic({
+      ...musicState,
+      provider: "youtube",
+      status: "loading",
+      title: track.title,
+      author: track.author || playlist.channelTitle,
+      albumArtUrl: track.thumbnailUrl,
+      uri: undefined,
+      videoId: track.videoId,
+      hasPlaylist: true,
+      playlistVideoIds: undefined,
+      playlistIndex: index,
+      errorMessage: undefined,
+    })
+    sendMusicCommand({
+      type: "load",
+      provider: "youtube",
+      videoId: track.videoId,
+      title: track.title,
+      author: track.author || playlist.channelTitle,
+      thumbnailUrl: track.thumbnailUrl,
+      autoplay: true,
+    })
+  }
+
+  const handleMusicLoadYouTubeVideo = (track: YouTubePlaylistTrack) => {
+    if (!slideshowOnline) openOutputWindow()
+    setMusicUrl(track.videoId)
+    setMusicStateOptimistic({
+      ...musicState,
+      provider: "youtube",
+      status: "loading",
+      title: track.title,
+      author: track.author,
+      albumArtUrl: track.thumbnailUrl,
+      uri: undefined,
+      videoId: track.videoId,
+      hasPlaylist: false,
+      playlistVideoIds: undefined,
+      playlistIndex: undefined,
+      errorMessage: undefined,
+    })
+    sendMusicCommand({
+      type: "load",
+      provider: "youtube",
+      videoId: track.videoId,
+      autoplay: true,
+    })
+  }
+
+  const handleMusicLoadSpotify = (
+    uri: string,
+    options?: { contextUri?: string; offsetUri?: string },
+  ) => {
+    const cmd = makeSpotifyLoadCommandFromRef(uri, options)
+    if (!cmd) return
+    if (!slideshowOnline) openOutputWindow()
+    // When playing a track within a playlist, the context (playlist) is
+    // what we persist + show as "now playing from", and next/prev work.
+    const displayUri = options?.contextUri ?? uri
+    setMusicUrl(displayUri)
+    setMusicStateOptimistic({
+      ...musicState,
+      provider: "spotify",
+      status: "loading",
+      title: undefined,
+      author: undefined,
+      albumArtUrl: undefined,
+      uri: displayUri,
+      videoId: undefined,
+      hasPlaylist: !!options?.contextUri,
+      playlistVideoIds: undefined,
+      playlistIndex: undefined,
+      errorMessage: undefined,
+    })
+    sendMusicCommand(cmd)
+  }
+
+  const getActiveMusicProvider = () => musicState.provider ?? "youtube"
+  const handleMusicPlay = () => sendMusicCommand({ type: "play", provider: getActiveMusicProvider() })
+  const handleMusicPause = () => sendMusicCommand({ type: "pause", provider: getActiveMusicProvider() })
+  const handleMusicNext = () => sendMusicCommand({ type: "next", provider: getActiveMusicProvider() })
+  const handleMusicPrev = () => sendMusicCommand({ type: "prev", provider: getActiveMusicProvider() })
+  const handleMusicPlayAt = (idx: number) =>
+    sendMusicCommand({ type: "playAt", provider: getActiveMusicProvider(), index: idx })
   const handleMusicSeek = (seconds: number) => {
     setMusicState((s) => ({ ...s, currentTime: seconds }))
-    sendMusicCommand({ type: "seek", seconds })
+    sendMusicCommand({ type: "seek", provider: getActiveMusicProvider(), seconds })
   }
   const handleMusicVolume = (v: number) => {
     setMusicState((s) => ({ ...s, volume: v }))
-    sendMusicCommand({ type: "volume", value: v })
+    sendMusicCommand({ type: "volume", provider: getActiveMusicProvider(), value: v })
   }
   const handleMusicStop = () => {
     setMusicUrl(null)
     setMusicState((s) => ({ ...DEFAULT_MUSIC_STATE, volume: s.volume }))
-    sendMusicCommand({ type: "stop" })
+    sendMusicCommand({ type: "stop", provider: getActiveMusicProvider() })
   }
 
   // ── Document title ─────────────────────────────────────────────────
@@ -867,7 +1027,14 @@ export default function OperatorPage() {
         musicState={musicState}
         musicUrl={musicUrl}
         slideshowOnline={slideshowOnline}
-        onMusicLoad={handleMusicLoad}
+        youtubeStatus={youtubeStatus}
+        onYouTubeStatusChange={setYouTubeStatus}
+        spotifyStatus={spotifyStatus}
+        onSpotifyStatusChange={setSpotifyStatus}
+        onMusicLoadYouTubePlaylist={handleMusicLoadYouTubePlaylist}
+        onMusicLoadYouTubeTrack={handleMusicLoadYouTubeTrack}
+        onMusicLoadYouTubeVideo={handleMusicLoadYouTubeVideo}
+        onMusicLoadSpotify={handleMusicLoadSpotify}
         onMusicPlay={handleMusicPlay}
         onMusicPause={handleMusicPause}
         onMusicNext={handleMusicNext}

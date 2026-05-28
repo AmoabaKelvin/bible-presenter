@@ -8,6 +8,8 @@ import { BackgroundPopover } from "./background-popover"
 import { MusicPane } from "./music-pane"
 import type { RefObject } from "react"
 import type { MusicState } from "@/lib/youtube-music"
+import type { SpotifyAuthStatus } from "@/lib/spotify-music"
+import type { YouTubeAuthStatus, YouTubePlaylistSummary, YouTubePlaylistTrack } from "@/lib/youtube-account"
 
 interface RightRailProps {
   previewVerses: SelectedVerse[]
@@ -34,7 +36,18 @@ interface RightRailProps {
   musicState: MusicState
   musicUrl: string | null
   slideshowOnline: boolean
-  onMusicLoad: (url: string) => void
+  youtubeStatus: YouTubeAuthStatus
+  onYouTubeStatusChange: (status: YouTubeAuthStatus) => void
+  spotifyStatus: SpotifyAuthStatus
+  onSpotifyStatusChange: (status: SpotifyAuthStatus) => void
+  onMusicLoadYouTubePlaylist: (playlist: YouTubePlaylistSummary) => void
+  onMusicLoadYouTubeVideo: (track: YouTubePlaylistTrack) => void
+  onMusicLoadYouTubeTrack: (
+    track: YouTubePlaylistTrack,
+    playlist: YouTubePlaylistSummary,
+    index: number,
+  ) => void
+  onMusicLoadSpotify: (uri: string, options?: { contextUri?: string; offsetUri?: string }) => void
   onMusicPlay: () => void
   onMusicPause: () => void
   onMusicNext: () => void
@@ -84,7 +97,14 @@ export function RightRail({
   musicState,
   musicUrl,
   slideshowOnline,
-  onMusicLoad,
+  youtubeStatus,
+  onYouTubeStatusChange,
+  spotifyStatus,
+  onSpotifyStatusChange,
+  onMusicLoadYouTubePlaylist,
+  onMusicLoadYouTubeTrack,
+  onMusicLoadYouTubeVideo,
+  onMusicLoadSpotify,
   onMusicPlay,
   onMusicPause,
   onMusicNext,
@@ -291,8 +311,15 @@ export function RightRail({
         state={musicState}
         url={musicUrl}
         slideshowOnline={slideshowOnline}
+        youtubeStatus={youtubeStatus}
+        onYouTubeStatusChange={onYouTubeStatusChange}
+        spotifyStatus={spotifyStatus}
+        onSpotifyStatusChange={onSpotifyStatusChange}
         onOpenOutput={onOpenOutput}
-        onLoad={onMusicLoad}
+        onLoadYouTubePlaylist={onMusicLoadYouTubePlaylist}
+        onLoadYouTubeTrack={onMusicLoadYouTubeTrack}
+        onLoadYouTubeVideo={onMusicLoadYouTubeVideo}
+        onLoadSpotify={onMusicLoadSpotify}
         onPlay={onMusicPlay}
         onPause={onMusicPause}
         onNext={onMusicNext}

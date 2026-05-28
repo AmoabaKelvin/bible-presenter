@@ -10,11 +10,14 @@ import {
 import {
   DEFAULT_MUSIC_STATE,
   MUSIC_COMMAND_KEY,
+  MUSIC_PROVIDER_KEY,
   MUSIC_STATE_KEY,
   SLIDESHOW_HEARTBEAT_KEY,
   SLIDESHOW_HEARTBEAT_INTERVAL_MS,
   type MusicCommand,
+  type MusicProvider,
   type MusicState,
+  isSpotifyLoadCommand,
 } from "@/lib/youtube-music"
 
 interface VerseData {
@@ -37,14 +40,18 @@ declare global {
       PlayerState: { ENDED: 0; PLAYING: 1; PAUSED: 2; BUFFERING: 3; CUED: 5 }
     }
     onYouTubeIframeAPIReady?: () => void
+    Spotify?: {
+      Player: new (opts: SpotifyPlayerOptions) => SpotifyPlayer
+    }
+    onSpotifyWebPlaybackSDKReady?: () => void
   }
 }
 
 interface YTPlayer {
   loadVideoById: (id: string) => void
-  loadPlaylist: (opts: { list: string; listType: string }) => void
+  loadPlaylist: (opts: { list: string; listType: string; index?: number }) => void
   cueVideoById: (id: string) => void
-  cuePlaylist: (opts: { list: string; listType: string }) => void
+  cuePlaylist: (opts: { list: string; listType: string; index?: number }) => void
   playVideo: () => void
   pauseVideo: () => void
   stopVideo: () => void
@@ -62,6 +69,52 @@ interface YTPlayer {
   getPlaylistIndex?: () => number
 }
 
+interface SpotifyPlayerOptions {
+  name: string
+  getOAuthToken: (cb: (token: string) => void) => void
+  volume?: number
+}
+
+interface SpotifyPlayer {
+  connect: () => Promise<boolean>
+  disconnect: () => void
+  addListener: (event: string, cb: (payload: SpotifyEventPayload) => void) => boolean
+  removeListener: (event: string) => boolean
+  getCurrentState: () => Promise<SpotifyPlaybackState | null>
+  setVolume: (volume: number) => Promise<void>
+  pause: () => Promise<void>
+  resume: () => Promise<void>
+  previousTrack: () => Promise<void>
+  nextTrack: () => Promise<void>
+  seek: (positionMs: number) => Promise<void>
+  activateElement: () => Promise<void>
+}
+
+type SpotifyEventPayload =
+  | { device_id: string }
+  | { message: string }
+  | SpotifyPlaybackState
+  | null
+
+interface SpotifyPlaybackState {
+  paused: boolean
+  position: number
+  duration: number
+  context?: { uri?: string | null } | null
+  track_window: {
+    current_track?: SpotifyTrack | null
+  }
+}
+
+interface SpotifyTrack {
+  id: string
+  uri: string
+  name: string
+  duration_ms: number
+  artists?: { name: string }[]
+  album?: { images?: { url: string }[] }
+}
+
 // Module-level guard — React StrictMode mounts effects twice in dev,
 // which would otherwise create two YT.Player instances racing on the
 // same localStorage state. Keep a single player for the lifetime of
@@ -70,6 +123,13 @@ let globalPlayer: YTPlayer | null = null
 let globalReady = false
 let globalHasPlaylist = false
 let globalLastStatus: MusicState["status"] = "idle"
+let globalYouTubeMetadata: Pick<MusicState, "title" | "author" | "albumArtUrl"> = {}
+let globalActiveProvider: MusicProvider = "youtube"
+let globalSpotifyPlayer: SpotifyPlayer | null = null
+let globalSpotifyReady = false
+let globalSpotifyDeviceId: string | null = null
+let globalSpotifyInitPromise: Promise<void> | null = null
+let globalSpotifyLastStatus: MusicState["status"] = "idle"
 
 export default function SlideshowPage() {
   const [data, setData] = useState<VerseData>({
@@ -84,6 +144,7 @@ export default function SlideshowPage() {
   const lastCommandIdRef = useRef<string | null>(null)
   const pendingCommandsRef = useRef<MusicCommand[]>([])
   const titlePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const spotifyPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // ── Slide data sync (unchanged behavior) ───────────────────────────
   useEffect(() => {
@@ -194,15 +255,36 @@ export default function SlideshowPage() {
 
   // ── YouTube IFrame Player ──────────────────────────────────────────
   useEffect(() => {
+    try {
+      const storedProvider = localStorage.getItem(MUSIC_PROVIDER_KEY)
+      if (storedProvider === "youtube" || storedProvider === "spotify") {
+        globalActiveProvider = storedProvider
+      } else {
+        const storedState = localStorage.getItem(MUSIC_STATE_KEY)
+        const provider = storedState ? (JSON.parse(storedState) as MusicState).provider : undefined
+        if (provider === "youtube" || provider === "spotify") globalActiveProvider = provider
+      }
+    } catch {
+      // ignore corrupt persisted music provider
+    }
+
     // Helper to publish the player's current state to the operator.
     // Status is sticky — only changes when explicitly told. We never
     // let polling overwrite a known status with the default.
     const publishState = (overrides: Partial<MusicState> = {}) => {
+      // Only the active provider is allowed to write shared state.
+      // Otherwise YouTube events (onReady/onStateChange) and the Spotify
+      // listeners fight over MUSIC_STATE_KEY and the operator flickers.
+      if (globalActiveProvider !== "youtube") return
       if (overrides.status !== undefined) {
         globalLastStatus = overrides.status
       }
       const p = globalPlayer
-      let base: MusicState = { ...DEFAULT_MUSIC_STATE, status: globalLastStatus }
+      let base: MusicState = {
+        ...DEFAULT_MUSIC_STATE,
+        provider: "youtube",
+        status: globalLastStatus,
+      }
       if (p) {
         try {
           const data = p.getVideoData()
@@ -219,10 +301,12 @@ export default function SlideshowPage() {
             }
           }
           base = {
+            provider: "youtube",
             status: globalLastStatus,
             videoId: data?.video_id || undefined,
-            title: data?.title || undefined,
-            author: data?.author || undefined,
+            title: globalYouTubeMetadata.title || data?.title || undefined,
+            author: globalYouTubeMetadata.author || data?.author || undefined,
+            albumArtUrl: globalYouTubeMetadata.albumArtUrl,
             volume: p.getVolume(),
             duration: p.getDuration(),
             currentTime: p.getCurrentTime(),
@@ -235,10 +319,261 @@ export default function SlideshowPage() {
         }
       }
       const merged: MusicState = { ...base, ...overrides }
+      localStorage.setItem(MUSIC_PROVIDER_KEY, "youtube")
       localStorage.setItem(MUSIC_STATE_KEY, JSON.stringify(merged))
     }
 
+    const spotifyStateToMusicState = (
+      state: SpotifyPlaybackState | null,
+      overrides: Partial<MusicState> = {},
+    ): MusicState => {
+      if (overrides.status !== undefined) {
+        globalSpotifyLastStatus = overrides.status
+      } else if (state) {
+        globalSpotifyLastStatus = state.paused ? "paused" : "playing"
+      }
+
+      const track = state?.track_window.current_track
+      const image = track?.album?.images?.[0]?.url
+      const savedVolume = localStorage.getItem("flowwwwMusicVolume")
+      const volume = savedVolume == null ? DEFAULT_MUSIC_STATE.volume : Number(savedVolume)
+      return {
+        ...DEFAULT_MUSIC_STATE,
+        provider: "spotify",
+        status: globalSpotifyLastStatus,
+        uri: track?.uri,
+        title: track?.name,
+        author: track?.artists?.map((artist) => artist.name).join(", "),
+        albumArtUrl: image,
+        volume: Number.isFinite(volume) ? volume : DEFAULT_MUSIC_STATE.volume,
+        duration: state ? state.duration / 1000 : undefined,
+        currentTime: state ? state.position / 1000 : undefined,
+        hasPlaylist: !!state?.context?.uri,
+        ...overrides,
+      }
+    }
+
+    const publishSpotifyState = async (overrides: Partial<MusicState> = {}) => {
+      if (globalActiveProvider !== "spotify") return
+      try {
+        const state = globalSpotifyPlayer ? await globalSpotifyPlayer.getCurrentState() : null
+        localStorage.setItem(MUSIC_PROVIDER_KEY, "spotify")
+        localStorage.setItem(
+          MUSIC_STATE_KEY,
+          JSON.stringify(spotifyStateToMusicState(state, overrides)),
+        )
+      } catch {
+        localStorage.setItem(MUSIC_PROVIDER_KEY, "spotify")
+        localStorage.setItem(
+          MUSIC_STATE_KEY,
+          JSON.stringify(spotifyStateToMusicState(null, overrides)),
+        )
+      }
+    }
+
+    const getSpotifyToken = async () => {
+      const res = await fetch("/api/spotify/token", { cache: "no-store" })
+      if (!res.ok) throw new Error("Spotify is not connected.")
+      const data = (await res.json()) as { accessToken: string }
+      return data.accessToken
+    }
+
+    const loadSpotifySdk = () => {
+      if (window.Spotify?.Player) return Promise.resolve()
+      if (globalSpotifyInitPromise) return globalSpotifyInitPromise
+
+      globalSpotifyInitPromise = new Promise<void>((resolve, reject) => {
+        const existing = document.querySelector(
+          "script[src='https://sdk.scdn.co/spotify-player.js']",
+        )
+        const timeout = window.setTimeout(() => reject(new Error("Spotify SDK timed out.")), 15_000)
+        window.onSpotifyWebPlaybackSDKReady = () => {
+          window.clearTimeout(timeout)
+          resolve()
+        }
+        if (!existing) {
+          const tag = document.createElement("script")
+          tag.src = "https://sdk.scdn.co/spotify-player.js"
+          tag.async = true
+          tag.onerror = () => {
+            window.clearTimeout(timeout)
+            reject(new Error("Failed to load Spotify SDK."))
+          }
+          document.body.appendChild(tag)
+        }
+      })
+
+      return globalSpotifyInitPromise
+    }
+
+    const ensureSpotifyPlayer = async () => {
+      if (globalSpotifyPlayer && globalSpotifyReady && globalSpotifyDeviceId) return
+
+      await loadSpotifySdk()
+      if (!window.Spotify?.Player) throw new Error("Spotify SDK is unavailable.")
+
+      if (!globalSpotifyPlayer) {
+        const savedVol = Number(localStorage.getItem("flowwwwMusicVolume"))
+        const initialVolume = Number.isFinite(savedVol) ? savedVol / 100 : DEFAULT_MUSIC_STATE.volume / 100
+        globalSpotifyPlayer = new window.Spotify.Player({
+          name: "flowwww",
+          volume: initialVolume,
+          getOAuthToken: (cb) => {
+            getSpotifyToken().then(cb).catch(() => cb(""))
+          },
+        })
+
+        globalSpotifyPlayer.addListener("ready", (payload) => {
+          const deviceId = payload && "device_id" in payload ? payload.device_id : null
+          globalSpotifyReady = true
+          globalSpotifyDeviceId = deviceId
+          publishSpotifyState({ status: "paused" })
+        })
+        globalSpotifyPlayer.addListener("not_ready", () => {
+          globalSpotifyReady = false
+          publishSpotifyState({ status: "error", errorMessage: "Spotify player is not ready." })
+        })
+        globalSpotifyPlayer.addListener("player_state_changed", (payload) => {
+          if (globalActiveProvider !== "spotify") return
+          if (!payload || !("track_window" in payload)) return
+          localStorage.setItem(MUSIC_PROVIDER_KEY, "spotify")
+          localStorage.setItem(
+            MUSIC_STATE_KEY,
+            JSON.stringify(spotifyStateToMusicState(payload)),
+          )
+        })
+        globalSpotifyPlayer.addListener("autoplay_failed", () => {
+          setNeedsAudioGesture(true)
+          publishSpotifyState({ status: "paused", errorMessage: "Click to enable Spotify audio." })
+        })
+        for (const eventName of ["initialization_error", "authentication_error", "account_error", "playback_error"]) {
+          globalSpotifyPlayer.addListener(eventName, (payload) => {
+            const message = payload && "message" in payload ? payload.message : "Spotify playback failed."
+            publishSpotifyState({ status: "error", errorMessage: message })
+          })
+        }
+      }
+
+      const connected = await globalSpotifyPlayer.connect()
+      if (!connected) throw new Error("Spotify player failed to connect.")
+
+      if (!spotifyPollRef.current) {
+        spotifyPollRef.current = setInterval(() => {
+          if (globalActiveProvider === "spotify") publishSpotifyState({})
+        }, 1000)
+      }
+
+      const start = Date.now()
+      while (!globalSpotifyDeviceId && Date.now() - start < 10_000) {
+        await new Promise((resolve) => window.setTimeout(resolve, 100))
+      }
+      if (!globalSpotifyDeviceId) throw new Error("Spotify player did not provide a device id.")
+    }
+
+    const transferSpotifyPlayback = async (play: boolean) => {
+      await ensureSpotifyPlayer()
+      const token = await getSpotifyToken()
+      await fetch("https://api.spotify.com/v1/me/player", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ device_ids: [globalSpotifyDeviceId], play }),
+      })
+    }
+
+    const startSpotifyPlayback = async (
+      cmd: Extract<MusicCommand, { provider: "spotify"; type: "load" }>,
+    ) => {
+      globalActiveProvider = "spotify"
+      localStorage.setItem(MUSIC_PROVIDER_KEY, "spotify")
+      await publishSpotifyState({ status: "loading" })
+      await transferSpotifyPlayback(false)
+
+      if (cmd.autoplay === false) {
+        await publishSpotifyState({ status: "paused", uri: cmd.uri })
+        return
+      }
+
+      if (!hasGesture()) setNeedsAudioGesture(true)
+
+      const token = await getSpotifyToken()
+      const body: Record<string, unknown> = {}
+      if (cmd.contextUri) {
+        body.context_uri = cmd.contextUri
+        if (cmd.offsetUri || cmd.uri) body.offset = { uri: cmd.offsetUri || cmd.uri }
+      } else if (cmd.uri.startsWith("spotify:track:") || cmd.uri.startsWith("spotify:episode:")) {
+        body.uris = [cmd.uri]
+      } else {
+        body.context_uri = cmd.uri
+      }
+      if (cmd.positionMs !== undefined) body.position_ms = Math.max(0, cmd.positionMs)
+
+      const url = new URL("https://api.spotify.com/v1/me/player/play")
+      url.searchParams.set("device_id", globalSpotifyDeviceId || "")
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`Spotify playback failed (${res.status}).`)
+      await publishSpotifyState({ status: "playing", uri: cmd.uri })
+    }
+
+    const dispatchSpotifyControl = async (cmd: MusicCommand) => {
+      globalActiveProvider = "spotify"
+      localStorage.setItem(MUSIC_PROVIDER_KEY, "spotify")
+      await ensureSpotifyPlayer()
+      switch (cmd.type) {
+        case "play":
+          await globalSpotifyPlayer?.resume()
+          await publishSpotifyState({ status: "playing" })
+          break
+        case "pause":
+          await globalSpotifyPlayer?.pause()
+          await publishSpotifyState({ status: "paused" })
+          break
+        case "next":
+          await globalSpotifyPlayer?.nextTrack()
+          await publishSpotifyState({ status: "loading" })
+          break
+        case "prev":
+          await globalSpotifyPlayer?.previousTrack()
+          await publishSpotifyState({ status: "loading" })
+          break
+        case "seek":
+          await globalSpotifyPlayer?.seek(Math.max(0, cmd.seconds * 1000))
+          await publishSpotifyState({ currentTime: cmd.seconds })
+          break
+        case "volume":
+          await globalSpotifyPlayer?.setVolume(Math.max(0, Math.min(100, cmd.value)) / 100)
+          await publishSpotifyState({ volume: cmd.value })
+          break
+        case "stop":
+          await globalSpotifyPlayer?.pause()
+          await publishSpotifyState({ status: "idle" })
+          break
+      }
+    }
+
     const dispatch = (cmd: MusicCommand) => {
+      if (isSpotifyLoadCommand(cmd)) {
+        startSpotifyPlayback(cmd).catch((err) => {
+          publishSpotifyState({ status: "error", errorMessage: (err as Error).message })
+        })
+        return
+      }
+      if (cmd.provider === "spotify" || (cmd.type !== "load" && globalActiveProvider === "spotify")) {
+        dispatchSpotifyControl(cmd).catch((err) => {
+          publishSpotifyState({ status: "error", errorMessage: (err as Error).message })
+        })
+        return
+      }
+
       const p = globalPlayer
       if (!p || !globalReady) {
         pendingCommandsRef.current.push(cmd)
@@ -247,14 +582,38 @@ export default function SlideshowPage() {
       try {
         switch (cmd.type) {
           case "load":
-            // Cue (no autoplay) — operator hits Play when ready.
+            globalActiveProvider = "youtube"
+            localStorage.setItem(MUSIC_PROVIDER_KEY, "youtube")
+            globalYouTubeMetadata = {
+              title: cmd.title,
+              author: cmd.author,
+              albumArtUrl: cmd.thumbnailUrl,
+            }
             publishState({ status: "loading" })
+            // Browser audio policy requires a real gesture in this output
+            // tab. If we have not had one yet, cue the media instead of
+            // attempting autoplay, otherwise the YT iframe can stay stuck
+            // in a loading state.
+            const canAutoplay = !!cmd.autoplay && hasGesture()
             if (cmd.playlistId) {
               globalHasPlaylist = true
-              p.cuePlaylist({ list: cmd.playlistId, listType: "playlist" })
+              const opts = {
+                list: cmd.playlistId,
+                listType: "playlist",
+                index: cmd.playlistIndex,
+              }
+              if (canAutoplay) p.loadPlaylist(opts)
+              else {
+                p.cuePlaylist(opts)
+                publishState({ status: "paused" })
+              }
             } else if (cmd.videoId) {
               globalHasPlaylist = false
-              p.cueVideoById(cmd.videoId)
+              if (canAutoplay) p.loadVideoById(cmd.videoId)
+              else {
+                p.cueVideoById(cmd.videoId)
+                publishState({ status: "paused", videoId: cmd.videoId })
+              }
             }
             break
           case "play":
@@ -305,7 +664,7 @@ export default function SlideshowPage() {
       // Audio playback requires a user gesture in this tab. Loading
       // (cueing) doesn't autoplay anymore, so only `play` triggers the
       // overlay.
-      if (cmd.type === "play" && !hasGesture()) {
+      if ((cmd.type === "play" || (cmd.type === "load" && cmd.autoplay)) && !hasGesture()) {
         setNeedsAudioGesture(true)
       }
       dispatch(cmd)
@@ -354,7 +713,12 @@ export default function SlideshowPage() {
             const pending = pendingCommandsRef.current
             pendingCommandsRef.current = []
             pending.forEach(dispatch)
-            titlePollRef.current = setInterval(() => publishState({}), 1000)
+            // Only publish YouTube state when YouTube is the active
+            // provider — otherwise this poll fights the Spotify poll
+            // over MUSIC_STATE_KEY and the operator UI flickers.
+            titlePollRef.current = setInterval(() => {
+              if (globalActiveProvider === "youtube") publishState({})
+            }, 1000)
           },
           onStateChange: (e: { data: number }) => {
             const YTP = window.YT?.PlayerState
@@ -370,7 +734,8 @@ export default function SlideshowPage() {
             if (status === null) publishState({})
             else publishState({ status })
           },
-          onError: () => publishState({ status: "error" }),
+          onError: (e: { data: number }) =>
+            publishState({ status: "error", errorMessage: `YouTube playback error ${e.data}` }),
         },
       }) as YTPlayer
     }
@@ -400,6 +765,7 @@ export default function SlideshowPage() {
     return () => {
       window.removeEventListener("storage", onStorage)
       if (titlePollRef.current) clearInterval(titlePollRef.current)
+      if (spotifyPollRef.current) clearInterval(spotifyPollRef.current)
     }
   }, [])
 
@@ -463,9 +829,19 @@ export default function SlideshowPage() {
           onClick={() => {
             sessionStorage.setItem("flowwwwGesture", "1")
             setNeedsAudioGesture(false)
+            try {
+              globalSpotifyPlayer?.activateElement()
+            } catch {
+              // ignore
+            }
             // Nudge the player to actually play, in case it was queued
             try {
               globalPlayer?.playVideo()
+            } catch {
+              // ignore
+            }
+            try {
+              globalSpotifyPlayer?.resume()
             } catch {
               // ignore
             }
