@@ -402,6 +402,10 @@ export default function OperatorPage() {
   }
 
   // ── Slideshow projection ───────────────────────────────────────────
+  // The slideshow reads backgroundColor/backgroundImage from their own
+  // localStorage keys, so we deliberately omit them from this payload.
+  // Including a large image data URL here can blow past the quota and
+  // throw — silently dropping the projection.
   const writeToOutput = useCallback(
     ({
       verses = [],
@@ -415,14 +419,16 @@ export default function OperatorPage() {
         fontSize,
         darkMode: true,
         version,
-        backgroundColor,
-        backgroundImage: backgroundImage ?? undefined,
         mediaUrl: mediaUrl ?? undefined,
       }
-      localStorage.setItem("bibleVerseData", JSON.stringify(data))
+      try {
+        localStorage.setItem("bibleVerseData", JSON.stringify(data))
+      } catch (err) {
+        console.error("flowwww: failed to write slide data", err)
+      }
       window.dispatchEvent(new Event("storage"))
     },
-    [fontSize, version, backgroundColor, backgroundImage],
+    [fontSize, version],
   )
 
   const openOutputWindow = () => {
