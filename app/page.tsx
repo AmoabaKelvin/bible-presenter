@@ -686,6 +686,9 @@ export default function OperatorPage() {
     setLiveVerses([v])
     writeToOutput({ verses: [v] })
     addToHistory(v.text, v.reference, v.version)
+    // Follow the projected verse in the reader so the Bible view matches.
+    const parsed = parseReference(r.reference)
+    if (parsed) handleReferenceChange(parsed.book, parsed.chapter, parsed.verse)
   }
 
   const queueSearchResult = (r: ScriptureSearchResult) => {
