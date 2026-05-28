@@ -1,6 +1,11 @@
+/* The app body is overflow:hidden + height:100% for the operator console,
+   which clips long pages. Make the legal page its own full-viewport
+   scroll layer so it scrolls independently of that clip. */
 .legal-page {
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #fafafa;
   color: #171717;
 }
