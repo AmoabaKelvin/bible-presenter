@@ -7,6 +7,7 @@ import {
   type FontSize,
   type SelectedVerse,
 } from "@/components/slide-stage"
+import { resolveImageUrl } from "@/lib/image-store"
 import {
   DEFAULT_MUSIC_STATE,
   MUSIC_COMMAND_KEY,
@@ -26,8 +27,10 @@ interface VerseData {
   darkMode: boolean
   version?: string
   backgroundColor?: string
+  // backgroundImage / mediaId carry IndexedDB ids (or legacy direct URLs);
+  // each are resolved to this tab's own object URL before rendering.
   backgroundImage?: string
-  mediaUrl?: string
+  mediaId?: string
 }
 
 declare global {
@@ -140,6 +143,8 @@ export default function SlideshowPage() {
     backgroundColor: "#000000",
   })
   const [needsAudioGesture, setNeedsAudioGesture] = useState(false)
+  const [bgImageUrl, setBgImageUrl] = useState<string | null>(null)
+  const [mediaImageUrl, setMediaImageUrl] = useState<string | null>(null)
 
   const lastCommandIdRef = useRef<string | null>(null)
   const pendingCommandsRef = useRef<MusicCommand[]>([])
@@ -252,6 +257,27 @@ export default function SlideshowPage() {
       clearInterval(interval)
     }
   }, [])
+
+  // ── Resolve image ids → this tab's object URLs ─────────────────────
+  useEffect(() => {
+    let cancelled = false
+    resolveImageUrl(data.backgroundImage).then((url) => {
+      if (!cancelled) setBgImageUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [data.backgroundImage])
+
+  useEffect(() => {
+    let cancelled = false
+    resolveImageUrl(data.mediaId).then((url) => {
+      if (!cancelled) setMediaImageUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [data.mediaId])
 
   // ── YouTube IFrame Player ──────────────────────────────────────────
   useEffect(() => {
@@ -784,8 +810,8 @@ export default function SlideshowPage() {
   }, [])
 
   const backgroundColor = data.backgroundColor || (data.darkMode ? "#000000" : "#FFFFFF")
-  const backgroundImage = data.backgroundImage
-  const mediaUrl = data.mediaUrl
+  const backgroundImage = bgImageUrl ?? undefined
+  const mediaUrl = mediaImageUrl ?? undefined
 
   return (
     <>

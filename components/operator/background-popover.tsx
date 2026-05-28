@@ -29,7 +29,8 @@ interface BackgroundPopoverProps {
   backgroundColor: string
   backgroundImage: string | null
   onColorChange: (c: string) => void
-  onImageChange: (img: string | null) => void
+  onUploadImage: (file: File) => void
+  onClearImage: () => void
   onReset: () => void
 }
 
@@ -37,19 +38,15 @@ export function BackgroundPopover({
   backgroundColor,
   backgroundImage,
   onColorChange,
-  onImageChange,
+  onUploadImage,
+  onClearImage,
   onReset,
 }: BackgroundPopoverProps) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      onImageChange(ev.target?.result as string)
-    }
-    reader.readAsDataURL(file)
+    if (file) onUploadImage(file)
     e.target.value = ""
   }
 
@@ -98,7 +95,7 @@ export function BackgroundPopover({
               variant="secondary"
               size="sm"
               className="absolute top-1 right-1 h-6 px-2 text-xs"
-              onClick={() => onImageChange(null)}
+              onClick={() => onClearImage()}
             >
               <X className="size-3 mr-1" />
               Remove
@@ -111,7 +108,7 @@ export function BackgroundPopover({
             color={backgroundColor}
             onChange={(c) => {
               onColorChange(c)
-              onImageChange(null)
+              onClearImage()
             }}
           />
         </div>
@@ -124,7 +121,7 @@ export function BackgroundPopover({
               title={p.label}
               onClick={() => {
                 onColorChange(p.value)
-                onImageChange(null)
+                onClearImage()
               }}
               className={`h-7 w-full rounded-sm border transition-all ${
                 !backgroundImage &&
@@ -148,7 +145,7 @@ export function BackgroundPopover({
               const v = e.target.value
               if (/^#([0-9A-Fa-f]{0,6})$/.test(v)) {
                 onColorChange(v)
-                onImageChange(null)
+                onClearImage()
               }
             }}
             className="h-7 text-xs font-mono"

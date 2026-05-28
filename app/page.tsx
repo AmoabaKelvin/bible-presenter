@@ -42,6 +42,7 @@ import {
   type YouTubePlaylistSummary,
   type YouTubePlaylistTrack,
 } from "@/lib/youtube-account"
+import { storeImage, resolveImageUrl, removeImage } from "@/lib/image-store"
 
 const HISTORY_KEY = "biblePresenterHistory"
 const VERSION_KEY = "bibleVersion"
@@ -75,8 +76,10 @@ export default function OperatorPage() {
   // Presentation
   const [previewVerses, setPreviewVerses] = useState<SelectedVerse[]>([])
   const [liveVerses, setLiveVerses] = useState<SelectedVerse[]>([])
-  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null)
-  const [liveMediaUrl, setLiveMediaUrl] = useState<string | null>(null)
+  // Media slides carry both the id (for the cross-tab payload / persistence)
+  // and a local object URL (for this tab's preview/live rendering).
+  const [previewMedia, setPreviewMedia] = useState<{ id: string; url: string } | null>(null)
+  const [liveMedia, setLiveMedia] = useState<{ id: string; url: string } | null>(null)
   const [queue, setQueue] = useState<SelectedVerse[]>([])
   const [queueCursor, setQueueCursor] = useState(-1)
   const [history, setHistory] = useState<HistoryItem[]>([])
@@ -86,7 +89,10 @@ export default function OperatorPage() {
   const [fontSize, setFontSize] = useState<FontSize>("extra-large")
   const [version, setVersion] = useState("KJV")
   const [backgroundColor, setBackgroundColor] = useState("#000000")
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null)
+  // backgroundImageId is persisted + small; backgroundImageUrl is the
+  // resolved object URL used for rendering in this tab.
+  const [backgroundImageId, setBackgroundImageId] = useState<string | null>(null)
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null)
   const [themeLoaded, setThemeLoaded] = useState(false)
 
   // Notes
@@ -116,7 +122,10 @@ export default function OperatorPage() {
       const bg = localStorage.getItem(BG_COLOR_KEY)
       if (bg) setBackgroundColor(bg)
       const bgImg = localStorage.getItem(BG_IMAGE_KEY)
-      if (bgImg) setBackgroundImage(bgImg)
+      if (bgImg) {
+        setBackgroundImageId(bgImg)
+        resolveImageUrl(bgImg).then((u) => setBackgroundImageUrl(u))
+      }
       const m = localStorage.getItem(MEDIA_KEY)
       if (m) setMedia(JSON.parse(m))
       const sn = localStorage.getItem(NOTES_KEY)
@@ -153,9 +162,13 @@ export default function OperatorPage() {
   }, [backgroundColor, themeLoaded])
   useEffect(() => {
     if (!themeLoaded) return
-    if (backgroundImage) localStorage.setItem(BG_IMAGE_KEY, backgroundImage)
-    else localStorage.removeItem(BG_IMAGE_KEY)
-  }, [backgroundImage, themeLoaded])
+    try {
+      if (backgroundImageId) localStorage.setItem(BG_IMAGE_KEY, backgroundImageId)
+      else localStorage.removeItem(BG_IMAGE_KEY)
+    } catch (err) {
+      console.error("flowwww: failed to persist background", err)
+    }
+  }, [backgroundImageId, themeLoaded])
   useEffect(() => {
     if (themeLoaded) localStorage.setItem(MEDIA_KEY, JSON.stringify(media))
   }, [media, themeLoaded])
@@ -566,8 +579,8 @@ export default function OperatorPage() {
     setSelectedVerse(verse)
     setRangeStartVerse(verse)
     setRangeEndVerse(null)
-    setPreviewMediaUrl(null)
-    setLiveMediaUrl(null)
+    setPreviewMedia(null)
+    setLiveMedia(null)
     setPreviewVerses(list)
     setLiveVerses(list)
     writeToOutput({ verses: list })
@@ -603,8 +616,8 @@ export default function OperatorPage() {
     ) {
       const list = buildSelectedVerses(rangeStartVerse, rangeEndVerse)
       if (list.length === 0) return
-      setPreviewMediaUrl(null)
-      setLiveMediaUrl(null)
+      setPreviewMedia(null)
+      setLiveMedia(null)
       setLiveVerses(list)
       writeToOutput({ verses: list })
       list.forEach((v) => addToHistory(v.text, v.reference, v.version))
@@ -615,8 +628,8 @@ export default function OperatorPage() {
     setSelectedVerse(verse)
     setRangeStartVerse(verse)
     setRangeEndVerse(null)
-    setPreviewMediaUrl(null)
-    setLiveMediaUrl(null)
+    setPreviewMedia(null)
+    setLiveMedia(null)
     setPreviewVerses(list)
     setLiveVerses(list)
     writeToOutput({ verses: list })
@@ -631,17 +644,17 @@ export default function OperatorPage() {
   const writeToOutput = useCallback(
     ({
       verses = [],
-      mediaUrl = null,
+      mediaId = null,
     }: {
       verses?: SelectedVerse[]
-      mediaUrl?: string | null
+      mediaId?: string | null
     }) => {
       const data: VerseData = {
         verses,
         fontSize,
         darkMode: true,
         version,
-        mediaUrl: mediaUrl ?? undefined,
+        mediaId: mediaId ?? undefined,
       }
       try {
         localStorage.setItem("bibleVerseData", JSON.stringify(data))
@@ -659,7 +672,7 @@ export default function OperatorPage() {
       "BibleSlideshow",
       "width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no",
     )
-    if (w) setTimeout(() => writeToOutput({ verses: liveVerses, mediaUrl: liveMediaUrl }), 500)
+    if (w) setTimeout(() => writeToOutput({ verses: liveVerses, mediaId: liveMedia?.id ?? null }), 500)
   }
 
   // ── History ────────────────────────────────────────────────────────
@@ -698,8 +711,8 @@ export default function OperatorPage() {
       reference: item.reference,
       version: item.version || version,
     }
-    setPreviewMediaUrl(null)
-    setLiveMediaUrl(null)
+    setPreviewMedia(null)
+    setLiveMedia(null)
     setPreviewVerses([v])
     setLiveVerses([v])
     writeToOutput({ verses: [v] })
@@ -708,22 +721,22 @@ export default function OperatorPage() {
   // ── Go live ────────────────────────────────────────────────────────
   const goLive = useCallback(() => {
     // Media preview takes precedence if set; otherwise verses
-    if (previewMediaUrl) {
+    if (previewMedia) {
       setLiveVerses([])
-      setLiveMediaUrl(previewMediaUrl)
-      writeToOutput({ mediaUrl: previewMediaUrl })
+      setLiveMedia(previewMedia)
+      writeToOutput({ mediaId: previewMedia.id })
       return
     }
     if (previewVerses.length === 0) return
-    setLiveMediaUrl(null)
+    setLiveMedia(null)
     setLiveVerses(previewVerses)
     writeToOutput({ verses: previewVerses })
     previewVerses.forEach((v) => addToHistory(v.text, v.reference, v.version))
-  }, [previewVerses, previewMediaUrl, writeToOutput])
+  }, [previewVerses, previewMedia, writeToOutput])
 
   const clearLive = () => {
     setLiveVerses([])
-    setLiveMediaUrl(null)
+    setLiveMedia(null)
     writeToOutput({})
   }
 
@@ -782,8 +795,8 @@ export default function OperatorPage() {
       if (idx < 0 || idx >= queue.length) return
       const item = queue[idx]
       setQueueCursor(idx)
-      setPreviewMediaUrl(null)
-      setLiveMediaUrl(null)
+      setPreviewMedia(null)
+      setLiveMedia(null)
       setPreviewVerses([item])
       setLiveVerses([item])
       writeToOutput({ verses: [item] })
@@ -794,7 +807,7 @@ export default function OperatorPage() {
 
   const queuePreviewAt = (idx: number) => {
     if (idx < 0 || idx >= queue.length) return
-    setPreviewMediaUrl(null)
+    setPreviewMedia(null)
     setPreviewVerses([queue[idx]])
   }
 
@@ -874,13 +887,13 @@ export default function OperatorPage() {
   const previewNote = () => {
     const v = composeNoteVerse()
     if (!v) return
-    setPreviewMediaUrl(null)
+    setPreviewMedia(null)
     setPreviewVerses([v])
   }
   const projectNote = () => {
     const v = composeNoteVerse()
     if (!v) return
-    setLiveMediaUrl(null)
+    setLiveMedia(null)
     setLiveVerses([v])
     writeToOutput({ verses: [v] })
     addToHistory(v.text, v.reference, v.version)
@@ -964,24 +977,62 @@ export default function OperatorPage() {
   }
 
   // ── Media actions ──────────────────────────────────────────────────
-  const addMedia = (item: MediaItem) => setMedia((m) => [item, ...m])
-  const deleteMedia = (id: string) => setMedia((m) => m.filter((x) => x.id !== id))
-  const previewMedia = (item: MediaItem) => {
-    setPreviewVerses([])
-    setPreviewMediaUrl(item.dataUrl)
+  const handleMediaUpload = async (file: File) => {
+    try {
+      const imageId = await storeImage(file)
+      setMedia((m) => [
+        {
+          id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: file.name,
+          imageId,
+          createdAt: Date.now(),
+        },
+        ...m,
+      ])
+    } catch (err) {
+      console.error("flowwww: failed to store media", err)
+    }
   }
-  const projectMedia = (item: MediaItem) => {
+  const deleteMedia = (id: string) => {
+    const item = media.find((x) => x.id === id)
+    if (item?.imageId) removeImage(item.imageId)
+    setMedia((m) => m.filter((x) => x.id !== id))
+  }
+  const handlePreviewMedia = async (item: MediaItem) => {
+    const url = await resolveImageUrl(item.imageId ?? item.dataUrl)
+    if (!url) return
+    setPreviewVerses([])
+    setPreviewMedia({ id: item.imageId ?? item.dataUrl ?? "", url })
+  }
+  const handleProjectMedia = async (item: MediaItem) => {
+    const ref = item.imageId ?? item.dataUrl ?? ""
+    const url = await resolveImageUrl(ref)
+    if (!url) return
     setPreviewVerses([])
     setLiveVerses([])
-    setPreviewMediaUrl(item.dataUrl)
-    setLiveMediaUrl(item.dataUrl)
-    writeToOutput({ mediaUrl: item.dataUrl })
+    setPreviewMedia({ id: ref, url })
+    setLiveMedia({ id: ref, url })
+    writeToOutput({ mediaId: ref })
   }
 
   // ── Background ─────────────────────────────────────────────────────
+  const handleBackgroundUpload = async (file: File) => {
+    try {
+      const id = await storeImage(file)
+      const url = await resolveImageUrl(id)
+      setBackgroundImageId(id)
+      setBackgroundImageUrl(url)
+    } catch (err) {
+      console.error("flowwww: failed to store background", err)
+    }
+  }
+  const clearBackgroundImage = () => {
+    setBackgroundImageId(null)
+    setBackgroundImageUrl(null)
+  }
   const resetBackground = () => {
     setBackgroundColor("#000000")
-    setBackgroundImage(null)
+    clearBackgroundImage()
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────
@@ -1081,10 +1132,10 @@ export default function OperatorPage() {
         {mode === "media" && (
           <MediaPane
             items={media}
-            onUpload={addMedia}
+            onUpload={handleMediaUpload}
             onDelete={deleteMedia}
-            onPreview={previewMedia}
-            onProject={projectMedia}
+            onPreview={handlePreviewMedia}
+            onProject={handleProjectMedia}
           />
         )}
       </main>
@@ -1092,15 +1143,16 @@ export default function OperatorPage() {
       <RightRail
         previewVerses={previewVerses}
         liveVerses={liveVerses}
-        previewMediaUrl={previewMediaUrl}
-        liveMediaUrl={liveMediaUrl}
+        previewMediaUrl={previewMedia?.url ?? null}
+        liveMediaUrl={liveMedia?.url ?? null}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
         version={version}
         backgroundColor={backgroundColor}
         onBackgroundColorChange={setBackgroundColor}
-        backgroundImage={backgroundImage}
-        onBackgroundImageChange={setBackgroundImage}
+        backgroundImage={backgroundImageUrl}
+        onUploadBackground={handleBackgroundUpload}
+        onClearBackground={clearBackgroundImage}
         onResetBackground={resetBackground}
         themeLoaded={themeLoaded}
         previewContentRef={previewContentRef}

@@ -1,15 +1,16 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Upload, Trash2, Radio, Eye } from "lucide-react"
+import { Upload, Trash2, Radio, Eye, ImageOff } from "lucide-react"
 import type { MediaItem } from "./types"
+import { resolveImageUrl } from "@/lib/image-store"
 
 interface MediaPaneProps {
   items: MediaItem[]
-  onUpload: (item: MediaItem) => void
+  onUpload: (file: File) => void
   onDelete: (id: string) => void
   onPreview: (item: MediaItem) => void
   onProject: (item: MediaItem) => void
@@ -28,16 +29,7 @@ export function MediaPane({
     if (!files) return
     Array.from(files).forEach((file) => {
       if (!file.type.startsWith("image/")) return
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        onUpload({
-          id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          name: file.name,
-          dataUrl: ev.target?.result as string,
-          createdAt: Date.now(),
-        })
-      }
-      reader.readAsDataURL(file)
+      onUpload(file)
     })
   }
 
@@ -104,6 +96,17 @@ function MediaTile({
   onPreview: () => void
   onProject: () => void
 }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    resolveImageUrl(item.imageId ?? item.dataUrl).then((u) => {
+      if (!cancelled) setUrl(u)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [item.imageId, item.dataUrl])
+
   return (
     <div className="group relative aspect-video rounded-md overflow-hidden border border-border bg-card">
       <button
@@ -112,11 +115,17 @@ function MediaTile({
         className="absolute inset-0"
         aria-label={`Preview ${item.name}`}
       >
-        <img
-          src={item.dataUrl}
-          alt={item.name}
-          className="absolute inset-0 size-full object-cover transition-transform group-hover:scale-[1.02]"
-        />
+        {url ? (
+          <img
+            src={url}
+            alt={item.name}
+            className="absolute inset-0 size-full object-cover transition-transform group-hover:scale-[1.02]"
+          />
+        ) : (
+          <span className="absolute inset-0 grid place-items-center text-muted-foreground">
+            <ImageOff className="size-4" />
+          </span>
+        )}
       </button>
 
       <div className="absolute inset-x-0 bottom-0 px-2 py-1.5 bg-gradient-to-t from-black/70 via-black/30 to-transparent flex items-end justify-between gap-2">

@@ -22,7 +22,8 @@ interface RightRailProps {
   backgroundColor: string
   onBackgroundColorChange: (c: string) => void
   backgroundImage: string | null
-  onBackgroundImageChange: (img: string | null) => void
+  onUploadBackground: (file: File) => void
+  onClearBackground: () => void
   onResetBackground: () => void
   themeLoaded: boolean
   previewContentRef: RefObject<HTMLDivElement | null>
@@ -84,7 +85,8 @@ export function RightRail({
   backgroundColor,
   onBackgroundColorChange,
   backgroundImage,
-  onBackgroundImageChange,
+  onUploadBackground,
+  onClearBackground,
   onResetBackground,
   themeLoaded,
   previewContentRef,
@@ -145,7 +147,8 @@ export function RightRail({
             backgroundColor={backgroundColor}
             backgroundImage={backgroundImage}
             onColorChange={onBackgroundColorChange}
-            onImageChange={onBackgroundImageChange}
+            onUploadImage={onUploadBackground}
+            onClearImage={onClearBackground}
             onReset={onResetBackground}
           />
         </div>

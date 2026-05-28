@@ -13,7 +13,8 @@ export interface HistoryItem {
 export interface MediaItem {
   id: string
   name: string
-  dataUrl: string
+  imageId?: string // IndexedDB key (new); dataUrl kept for legacy items
+  dataUrl?: string
   createdAt: number
 }
 
@@ -32,5 +33,6 @@ export interface VerseData {
   version: string
   backgroundColor?: string
   backgroundImage?: string
-  mediaUrl?: string
+  // Image references are IndexedDB ids; each tab resolves them locally.
+  mediaId?: string
 }
