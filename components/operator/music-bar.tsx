@@ -12,6 +12,7 @@ import {
   Settings2,
   X,
   Loader2,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +29,8 @@ import { parseYouTubeUrl } from "@/lib/youtube-music"
 interface MusicBarProps {
   state: MusicState
   url: string | null
+  slideshowOnline: boolean
+  onOpenOutput: () => void
   onLoad: (url: string) => void
   onPlay: () => void
   onPause: () => void
@@ -40,6 +43,8 @@ interface MusicBarProps {
 export function MusicBar({
   state,
   url,
+  slideshowOnline,
+  onOpenOutput,
   onLoad,
   onPlay,
   onPause,
@@ -58,6 +63,7 @@ export function MusicBar({
   const muted = state.volume === 0
 
   const handleLoad = () => {
+    if (!slideshowOnline) return
     const parsed = parseYouTubeUrl(draftUrl)
     if (!parsed) {
       setError(true)
@@ -101,6 +107,26 @@ export function MusicBar({
           </Tooltip>
           <PopoverContent align="start" side="top" className="w-[320px] p-3">
             <div className="space-y-3">
+              {!slideshowOnline && (
+                <div className="rounded-md border border-dashed border-border bg-muted/40 p-2.5 text-[11px] leading-relaxed">
+                  <p className="text-foreground mb-1.5">Output window isn&rsquo;t open</p>
+                  <p className="text-muted-foreground mb-2">
+                    Music plays in the slideshow tab, so it needs to be open first.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs w-full"
+                    onClick={() => {
+                      onOpenOutput()
+                      setPopoverOpen(false)
+                    }}
+                  >
+                    <ExternalLink className="size-3 mr-1.5" />
+                    Open output
+                  </Button>
+                </div>
+              )}
               <div>
                 <label className="eyebrow block mb-1.5">YouTube URL</label>
                 <div className="flex gap-1.5">
@@ -114,16 +140,24 @@ export function MusicBar({
                       if (e.key === "Enter") handleLoad()
                     }}
                     placeholder="Paste a video or playlist URL"
+                    disabled={!slideshowOnline}
                     className={`h-8 text-sm ${error ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
                     autoFocus
                   />
-                  <Button size="sm" onClick={handleLoad} disabled={!draftUrl.trim()} className="h-8">
+                  <Button
+                    size="sm"
+                    onClick={handleLoad}
+                    disabled={!draftUrl.trim() || !slideshowOnline}
+                    className="h-8"
+                  >
                     Load
                   </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Music plays in the slideshow tab so screen-sharing carries the audio.
-                </p>
+                {slideshowOnline && (
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                    Music plays in the slideshow tab so screen-sharing carries the audio.
+                  </p>
+                )}
               </div>
 
               {url && (

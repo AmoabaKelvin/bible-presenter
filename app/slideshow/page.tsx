@@ -11,6 +11,8 @@ import {
   DEFAULT_MUSIC_STATE,
   MUSIC_COMMAND_KEY,
   MUSIC_STATE_KEY,
+  SLIDESHOW_HEARTBEAT_KEY,
+  SLIDESHOW_HEARTBEAT_INTERVAL_MS,
   type MusicCommand,
   type MusicState,
 } from "@/lib/youtube-music"
@@ -375,6 +377,20 @@ export default function SlideshowPage() {
       window.removeEventListener("storage", onStorage)
       if (titlePollRef.current) clearInterval(titlePollRef.current)
     }
+  }, [])
+
+  // ── Heartbeat so the operator can tell the output is open ─────────
+  useEffect(() => {
+    const tick = () => {
+      try {
+        localStorage.setItem(SLIDESHOW_HEARTBEAT_KEY, String(Date.now()))
+      } catch {
+        // ignore
+      }
+    }
+    tick()
+    const interval = setInterval(tick, SLIDESHOW_HEARTBEAT_INTERVAL_MS)
+    return () => clearInterval(interval)
   }, [])
 
   const backgroundColor = data.backgroundColor || (data.darkMode ? "#000000" : "#FFFFFF")

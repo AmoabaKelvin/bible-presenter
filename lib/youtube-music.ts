@@ -8,6 +8,12 @@ export const MUSIC_STATE_KEY = "flowwwwMusicState"
 export const MUSIC_URL_KEY = "flowwwwMusicUrl"
 export const MUSIC_VOLUME_KEY = "flowwwwMusicVolume"
 
+// The slideshow tab writes a timestamp here every couple of seconds so
+// the operator can tell whether the output window is actually open.
+export const SLIDESHOW_HEARTBEAT_KEY = "flowwwwSlideshowHeartbeat"
+export const SLIDESHOW_HEARTBEAT_INTERVAL_MS = 2000
+export const SLIDESHOW_HEARTBEAT_STALE_MS = 5000
+
 export type MusicCommand =
   | { id: string; type: "load"; url: string; videoId?: string; playlistId?: string; autoplay?: boolean }
   | { id: string; type: "play" }

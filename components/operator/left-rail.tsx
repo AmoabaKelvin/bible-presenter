@@ -16,6 +16,8 @@ interface LeftRailProps {
   onClearRecent: () => void
   musicState: MusicState
   musicUrl: string | null
+  slideshowOnline: boolean
+  onOpenOutput: () => void
   onMusicLoad: (url: string) => void
   onMusicPlay: () => void
   onMusicPause: () => void
@@ -50,6 +52,8 @@ export function LeftRail({
   onClearRecent,
   musicState,
   musicUrl,
+  slideshowOnline,
+  onOpenOutput,
   onMusicLoad,
   onMusicPlay,
   onMusicPause,
@@ -157,6 +161,8 @@ export function LeftRail({
       <MusicBar
         state={musicState}
         url={musicUrl}
+        slideshowOnline={slideshowOnline}
+        onOpenOutput={onOpenOutput}
         onLoad={onMusicLoad}
         onPlay={onMusicPlay}
         onPause={onMusicPause}

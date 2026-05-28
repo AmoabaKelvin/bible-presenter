@@ -23,6 +23,8 @@ import {
   MUSIC_STATE_KEY,
   MUSIC_URL_KEY,
   MUSIC_VOLUME_KEY,
+  SLIDESHOW_HEARTBEAT_KEY,
+  SLIDESHOW_HEARTBEAT_STALE_MS,
   type MusicCommand,
   type MusicCommandInput,
   type MusicState,
@@ -77,6 +79,7 @@ export default function OperatorPage() {
   // Music
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
   const [musicState, setMusicState] = useState<MusicState>(DEFAULT_MUSIC_STATE)
+  const [slideshowOnline, setSlideshowOnline] = useState(false)
 
   const previewContentRef = useRef<HTMLDivElement>(null)
 
@@ -172,6 +175,18 @@ export default function OperatorPage() {
       window.removeEventListener("storage", onStorage)
       clearInterval(interval)
     }
+  }, [])
+
+  // Track whether the slideshow tab is open via its heartbeat
+  useEffect(() => {
+    const check = () => {
+      const raw = localStorage.getItem(SLIDESHOW_HEARTBEAT_KEY)
+      const ts = raw ? Number(raw) : 0
+      setSlideshowOnline(Number.isFinite(ts) && Date.now() - ts < SLIDESHOW_HEARTBEAT_STALE_MS)
+    }
+    check()
+    const interval = setInterval(check, 1000)
+    return () => clearInterval(interval)
   }, [])
 
   // Send a music command (the slideshow tab handles it)
@@ -720,6 +735,8 @@ export default function OperatorPage() {
         onClearRecent={clearHistory}
         musicState={musicState}
         musicUrl={musicUrl}
+        slideshowOnline={slideshowOnline}
+        onOpenOutput={openOutputWindow}
         onMusicLoad={handleMusicLoad}
         onMusicPlay={handleMusicPlay}
         onMusicPause={handleMusicPause}
