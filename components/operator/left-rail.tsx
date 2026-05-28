@@ -102,8 +102,27 @@ export function LeftRail({
         onClearRecent={onClearRecent}
       />
 
-      <div className="border-t border-border p-2">
+      <div className="border-t border-border p-2 flex items-center justify-between">
         <ThemeToggle />
+        <div className="flex items-center gap-2 pr-1.5 text-[10px] text-muted-foreground/50">
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-muted-foreground transition-colors"
+          >
+            Privacy
+          </a>
+          <span aria-hidden>·</span>
+          <a
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-muted-foreground transition-colors"
+          >
+            Terms
+          </a>
+        </div>
       </div>
     </aside>
   )
