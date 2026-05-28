@@ -26,6 +26,8 @@ import { BookGrid } from "./book-grid"
 import { ChapterGrid } from "./chapter-grid"
 import { ChapterReader, type ChapterVerse } from "./chapter-reader"
 import { ScriptureTypeahead } from "./scripture-typeahead"
+import { ScriptureSearchResults } from "./scripture-search-results"
+import type { ScriptureSearchResult } from "@/lib/scripture-search"
 
 interface BiblePaneProps {
   selectedBook: BibleBook | null
@@ -43,6 +45,9 @@ interface BiblePaneProps {
   onSelectVerse: (verse: number, shiftKey: boolean) => void
   onDoubleClickVerse: (verse: number) => void
   onQueueVerse: (verse: number) => void
+  onPreviewSearchResult: (result: ScriptureSearchResult) => void
+  onProjectSearchResult: (result: ScriptureSearchResult) => void
+  onQueueSearchResult: (result: ScriptureSearchResult) => void
 }
 
 export function BiblePane({
@@ -61,8 +66,12 @@ export function BiblePane({
   onSelectVerse,
   onDoubleClickVerse,
   onQueueVerse,
+  onPreviewSearchResult,
+  onProjectSearchResult,
+  onQueueSearchResult,
 }: BiblePaneProps) {
   const [bookQuery, setBookQuery] = useState("")
+  const searchActive = bookQuery.trim().length >= 2
 
   // View state machine:
   // - no book → books grid
@@ -110,7 +119,7 @@ export function BiblePane({
         </Select>
       </header>
 
-      {/* Books view — keep its own search inline above the grid */}
+      {/* Books view — search the whole Bible, or browse books when empty */}
       {view === "books" && (
         <>
           <div className="px-8 pt-6 pb-2 max-w-[1100px] mx-auto w-full">
@@ -119,7 +128,7 @@ export function BiblePane({
               <Input
                 value={bookQuery}
                 onChange={(e) => setBookQuery(e.target.value)}
-                placeholder="Search books"
+                placeholder="Search the Bible — a word, phrase, or topic"
                 className="h-10 pl-10 text-sm"
                 autoFocus
               />
@@ -134,11 +143,21 @@ export function BiblePane({
               )}
             </div>
           </div>
-          <BookGrid
-            selectedBook={selectedBook}
-            query={bookQuery}
-            onSelect={(b) => onReferenceChange(b, null)}
-          />
+          {searchActive ? (
+            <ScriptureSearchResults
+              query={bookQuery}
+              version={version}
+              onPreview={onPreviewSearchResult}
+              onProject={onProjectSearchResult}
+              onQueue={onQueueSearchResult}
+            />
+          ) : (
+            <BookGrid
+              selectedBook={selectedBook}
+              query={bookQuery}
+              onSelect={(b) => onReferenceChange(b, null)}
+            />
+          )}
         </>
       )}
 

@@ -10,7 +10,13 @@ import {
   BIBLE_API_BASE,
 } from "@/lib/bible-data"
 import type { FontSize, SelectedVerse } from "@/components/slide-stage"
+import {
+  parseReference,
+  stripEm,
+  type ScriptureSearchResult,
+} from "@/lib/scripture-search"
 import { LeftRail } from "@/components/operator/left-rail"
+import { CommandPalette } from "@/components/operator/command-palette"
 import { BiblePane } from "@/components/operator/bible-pane"
 import { NotesPane } from "@/components/operator/notes-pane"
 import { MediaPane } from "@/components/operator/media-pane"
@@ -636,6 +642,39 @@ export default function OperatorPage() {
     list.forEach((v) => addToHistory(v.text, v.reference, v.version))
   }
 
+  // ── Full-text search result actions ────────────────────────────────
+  const verseFromSearchResult = (r: ScriptureSearchResult): SelectedVerse => {
+    const parsed = parseReference(r.reference)
+    return {
+      id: `search-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      book: parsed?.book.name ?? "",
+      chapter: parsed?.chapter ?? 0,
+      verse: parsed?.verse ?? 0,
+      text: stripEm(r.text),
+      reference: r.reference,
+      version,
+    }
+  }
+
+  const previewSearchResult = (r: ScriptureSearchResult) => {
+    setPreviewMedia(null)
+    setPreviewVerses([verseFromSearchResult(r)])
+  }
+
+  const projectSearchResult = (r: ScriptureSearchResult) => {
+    const v = verseFromSearchResult(r)
+    setPreviewMedia(null)
+    setLiveMedia(null)
+    setPreviewVerses([v])
+    setLiveVerses([v])
+    writeToOutput({ verses: [v] })
+    addToHistory(v.text, v.reference, v.version)
+  }
+
+  const queueSearchResult = (r: ScriptureSearchResult) => {
+    addToQueue([verseFromSearchResult(r)])
+  }
+
   // ── Slideshow projection ───────────────────────────────────────────
   // The slideshow reads backgroundColor/backgroundImage from their own
   // localStorage keys, so we deliberately omit them from this payload.
@@ -1111,6 +1150,9 @@ export default function OperatorPage() {
             onSelectVerse={handleSelectVerse}
             onDoubleClickVerse={handleDoubleClickVerse}
             onQueueVerse={queueVerseFromChapter}
+            onPreviewSearchResult={previewSearchResult}
+            onProjectSearchResult={projectSearchResult}
+            onQueueSearchResult={queueSearchResult}
           />
         )}
         {mode === "notes" && (
@@ -1181,6 +1223,13 @@ export default function OperatorPage() {
         onMusicSeek={handleMusicSeek}
         onMusicVolume={handleMusicVolume}
         onMusicStop={handleMusicStop}
+      />
+
+      <CommandPalette
+        version={version}
+        onPreview={previewSearchResult}
+        onProject={projectSearchResult}
+        onQueue={queueSearchResult}
       />
     </div>
   )
