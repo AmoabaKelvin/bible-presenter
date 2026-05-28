@@ -89,7 +89,7 @@ export default function PrivacyPage() {
           <h2>Contact</h2>
           <p>
             For privacy questions, contact the app owner at{" "}
-            <a href="mailto:kelvinamoaba@gmail.com">kelvinamoaba@gmail.com</a>.
+            <a href="mailto:kel.amoaba@gmail.com">kel.amoaba@gmail.com</a>.
           </p>
         </section>
 
