@@ -16,7 +16,7 @@ import { NotesPane } from "@/components/operator/notes-pane"
 import { MediaPane } from "@/components/operator/media-pane"
 import { RightRail } from "@/components/operator/right-rail"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
-import type { HistoryItem, MediaItem, Mode, VerseData } from "@/components/operator/types"
+import type { HistoryItem, MediaItem, Mode, SavedNote, VerseData } from "@/components/operator/types"
 import {
   DEFAULT_MUSIC_STATE,
   MUSIC_COMMAND_KEY,
@@ -50,6 +50,7 @@ const BG_IMAGE_KEY = "biblePresenterBackgroundImage"
 const MEDIA_KEY = "biblePresenterMedia"
 const QUEUE_KEY = "biblePresenterQueue"
 const QUEUE_CURSOR_KEY = "biblePresenterQueueCursor"
+const NOTES_KEY = "biblePresenterSavedNotes"
 
 export default function OperatorPage() {
   // Mode + selection
@@ -91,6 +92,10 @@ export default function OperatorPage() {
   // Notes
   const [noteTitle, setNoteTitle] = useState("")
   const [noteText, setNoteText] = useState("")
+  const [savedNotes, setSavedNotes] = useState<SavedNote[]>([])
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
+  const activeNoteIdRef = useRef<string | null>(null)
+  const savedNotesRef = useRef<SavedNote[]>([])
 
   // Music
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
@@ -114,6 +119,8 @@ export default function OperatorPage() {
       if (bgImg) setBackgroundImage(bgImg)
       const m = localStorage.getItem(MEDIA_KEY)
       if (m) setMedia(JSON.parse(m))
+      const sn = localStorage.getItem(NOTES_KEY)
+      if (sn) setSavedNotes(JSON.parse(sn))
       const q = localStorage.getItem(QUEUE_KEY)
       if (q) setQueue(JSON.parse(q))
       const qc = localStorage.getItem(QUEUE_CURSOR_KEY)
@@ -152,6 +159,10 @@ export default function OperatorPage() {
   useEffect(() => {
     if (themeLoaded) localStorage.setItem(MEDIA_KEY, JSON.stringify(media))
   }, [media, themeLoaded])
+  useEffect(() => {
+    savedNotesRef.current = savedNotes
+    if (themeLoaded) localStorage.setItem(NOTES_KEY, JSON.stringify(savedNotes))
+  }, [savedNotes, themeLoaded])
   useEffect(() => {
     if (themeLoaded) localStorage.setItem(QUEUE_KEY, JSON.stringify(queue))
   }, [queue, themeLoaded])
@@ -878,8 +889,78 @@ export default function OperatorPage() {
     const v = composeNoteVerse()
     if (!v) return
     addToQueue([v])
-    setNoteText("")
+  }
+
+  // ── Saved notes (library, auto-saved) ──────────────────────────────
+  // activeNoteIdRef mirrors activeNoteId synchronously so the debounced
+  // autosave never creates a second note for the same draft.
+  const persistCurrentEditor = useCallback((): string | null => {
+    const title = noteTitle.trim()
+    const body = noteText.trim()
+    if (!title && !body) return null
+    const now = Date.now()
+    const currentId = activeNoteIdRef.current
+    if (currentId) {
+      // Only write (and bump updatedAt) if the content actually changed —
+      // otherwise just viewing/switching a note would reorder the list.
+      const existing = savedNotesRef.current.find((n) => n.id === currentId)
+      if (existing && existing.title === noteTitle && existing.body === noteText) {
+        return currentId
+      }
+      setSavedNotes((prev) =>
+        prev.map((n) =>
+          n.id === currentId ? { ...n, title: noteTitle, body: noteText, updatedAt: now } : n,
+        ),
+      )
+      return currentId
+    }
+    const id = `note-${now}-${Math.random().toString(36).slice(2, 7)}`
+    activeNoteIdRef.current = id
+    setActiveNoteId(id)
+    setSavedNotes((prev) => [
+      { id, title: noteTitle, body: noteText, createdAt: now, updatedAt: now },
+      ...prev,
+    ])
+    return id
+  }, [noteTitle, noteText])
+
+  // Debounced autosave — fires only when the editor differs from the
+  // stored note (so loading a note doesn't bump its timestamp).
+  useEffect(() => {
+    if (!themeLoaded) return
+    if (!noteTitle.trim() && !noteText.trim()) return
+    const currentId = activeNoteIdRef.current
+    const active = currentId ? savedNotes.find((n) => n.id === currentId) : undefined
+    if (active && active.title === noteTitle && active.body === noteText) return
+    const handle = setTimeout(() => persistCurrentEditor(), 600)
+    return () => clearTimeout(handle)
+  }, [noteTitle, noteText, themeLoaded, savedNotes, persistCurrentEditor])
+
+  const selectNote = (note: SavedNote) => {
+    if (note.id === activeNoteIdRef.current) return
+    persistCurrentEditor()
+    activeNoteIdRef.current = note.id
+    setActiveNoteId(note.id)
+    setNoteTitle(note.title)
+    setNoteText(note.body)
+  }
+
+  const newNote = () => {
+    persistCurrentEditor()
+    activeNoteIdRef.current = null
+    setActiveNoteId(null)
     setNoteTitle("")
+    setNoteText("")
+  }
+
+  const deleteNote = (id: string) => {
+    setSavedNotes((prev) => prev.filter((n) => n.id !== id))
+    if (id === activeNoteIdRef.current) {
+      activeNoteIdRef.current = null
+      setActiveNoteId(null)
+      setNoteTitle("")
+      setNoteText("")
+    }
   }
 
   // ── Media actions ──────────────────────────────────────────────────
@@ -985,8 +1066,13 @@ export default function OperatorPage() {
           <NotesPane
             title={noteTitle}
             text={noteText}
+            savedNotes={savedNotes}
+            activeNoteId={activeNoteId}
             onTitleChange={setNoteTitle}
             onTextChange={setNoteText}
+            onSelectNote={selectNote}
+            onNewNote={newNote}
+            onDeleteNote={deleteNote}
             onPreview={previewNote}
             onProject={projectNote}
             onAddToQueue={queueNote}
