@@ -20,6 +20,8 @@ export type MusicCommand =
   | { id: string; type: "pause" }
   | { id: string; type: "next" }
   | { id: string; type: "prev" }
+  | { id: string; type: "playAt"; index: number }
+  | { id: string; type: "seek"; seconds: number }
   | { id: string; type: "volume"; value: number }
   | { id: string; type: "stop" }
 
@@ -42,6 +44,8 @@ export interface MusicState {
   duration?: number
   currentTime?: number
   hasPlaylist?: boolean
+  playlistVideoIds?: string[]
+  playlistIndex?: number
 }
 
 export const DEFAULT_MUSIC_STATE: MusicState = {

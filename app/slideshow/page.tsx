@@ -50,12 +50,16 @@ interface YTPlayer {
   stopVideo: () => void
   nextVideo: () => void
   previousVideo: () => void
+  playVideoAt: (index: number) => void
+  seekTo: (seconds: number, allowSeekAhead?: boolean) => void
   setVolume: (v: number) => void
   getVolume: () => number
   getVideoData: () => { video_id: string; title: string; author: string }
   getCurrentTime: () => number
   getDuration: () => number
   getPlayerState?: () => number
+  getPlaylist?: () => string[] | null
+  getPlaylistIndex?: () => number
 }
 
 // Module-level guard — React StrictMode mounts effects twice in dev,
@@ -202,6 +206,18 @@ export default function SlideshowPage() {
       if (p) {
         try {
           const data = p.getVideoData()
+          let playlistVideoIds: string[] | undefined
+          let playlistIndex: number | undefined
+          if (globalHasPlaylist) {
+            try {
+              const list = p.getPlaylist?.()
+              if (Array.isArray(list) && list.length > 0) playlistVideoIds = list
+              const idx = p.getPlaylistIndex?.()
+              if (typeof idx === "number" && idx >= 0) playlistIndex = idx
+            } catch {
+              // playlist not loaded yet
+            }
+          }
           base = {
             status: globalLastStatus,
             videoId: data?.video_id || undefined,
@@ -211,6 +227,8 @@ export default function SlideshowPage() {
             duration: p.getDuration(),
             currentTime: p.getCurrentTime(),
             hasPlaylist: globalHasPlaylist,
+            playlistVideoIds,
+            playlistIndex,
           }
         } catch {
           // pre-ready or no data yet
@@ -250,6 +268,12 @@ export default function SlideshowPage() {
             break
           case "prev":
             if (globalHasPlaylist) p.previousVideo()
+            break
+          case "playAt":
+            if (globalHasPlaylist) p.playVideoAt(cmd.index)
+            break
+          case "seek":
+            p.seekTo(cmd.seconds, true)
             break
           case "volume":
             p.setVolume(Math.max(0, Math.min(100, cmd.value)))

@@ -213,6 +213,11 @@ export default function OperatorPage() {
   const handleMusicPause = () => sendMusicCommand({ type: "pause" })
   const handleMusicNext = () => sendMusicCommand({ type: "next" })
   const handleMusicPrev = () => sendMusicCommand({ type: "prev" })
+  const handleMusicPlayAt = (idx: number) => sendMusicCommand({ type: "playAt", index: idx })
+  const handleMusicSeek = (seconds: number) => {
+    setMusicState((s) => ({ ...s, currentTime: seconds }))
+    sendMusicCommand({ type: "seek", seconds })
+  }
   const handleMusicVolume = (v: number) => {
     setMusicState((s) => ({ ...s, volume: v }))
     sendMusicCommand({ type: "volume", value: v })
@@ -739,17 +744,15 @@ export default function OperatorPage() {
         recent={history.slice(0, 12)}
         onSelectRecent={projectFromHistory}
         onClearRecent={clearHistory}
-        musicState={musicState}
-        musicUrl={musicUrl}
-        slideshowOnline={slideshowOnline}
-        onOpenOutput={openOutputWindow}
-        onMusicLoad={handleMusicLoad}
-        onMusicPlay={handleMusicPlay}
-        onMusicPause={handleMusicPause}
-        onMusicNext={handleMusicNext}
-        onMusicPrev={handleMusicPrev}
-        onMusicVolume={handleMusicVolume}
-        onMusicStop={handleMusicStop}
+        queue={queue}
+        queueCursor={queueCursor}
+        onQueuePreviewAt={queuePreviewAt}
+        onQueueProjectAt={queueGoto}
+        onQueueRemove={queueRemove}
+        onQueueReorder={queueReorder}
+        onQueuePrev={queuePrev}
+        onQueueNext={queueNext}
+        onClearQueue={clearQueue}
       />
 
       <main className="flex-1 min-w-0 h-full overflow-hidden">
@@ -798,8 +801,6 @@ export default function OperatorPage() {
         liveVerses={liveVerses}
         previewMediaUrl={previewMediaUrl}
         liveMediaUrl={liveMediaUrl}
-        queue={queue}
-        queueCursor={queueCursor}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
         version={version}
@@ -816,13 +817,18 @@ export default function OperatorPage() {
         onApplyHighlight={applyHighlight}
         onClearHighlights={clearHighlights}
         onAddPreviewToQueue={queuePreviewItem}
-        onQueuePreviewAt={queuePreviewAt}
-        onQueueProjectAt={queueGoto}
-        onQueueRemove={queueRemove}
-        onQueueReorder={queueReorder}
-        onQueuePrev={queuePrev}
-        onQueueNext={queueNext}
-        onClearQueue={clearQueue}
+        musicState={musicState}
+        musicUrl={musicUrl}
+        slideshowOnline={slideshowOnline}
+        onMusicLoad={handleMusicLoad}
+        onMusicPlay={handleMusicPlay}
+        onMusicPause={handleMusicPause}
+        onMusicNext={handleMusicNext}
+        onMusicPrev={handleMusicPrev}
+        onMusicPlayAt={handleMusicPlayAt}
+        onMusicSeek={handleMusicSeek}
+        onMusicVolume={handleMusicVolume}
+        onMusicStop={handleMusicStop}
       />
     </div>
   )

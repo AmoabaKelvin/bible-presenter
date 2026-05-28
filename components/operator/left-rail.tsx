@@ -1,12 +1,11 @@
 "use client"
 
-import { Book, FileText, Image as ImageIcon, RotateCcw, BookMarked } from "lucide-react"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Book, FileText, Image as ImageIcon, BookMarked } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
-import { MusicBar } from "./music-bar"
+import { QueuePane } from "./queue-pane"
+import { RecentSection } from "./recent-section"
 import type { Mode, HistoryItem } from "./types"
-import type { MusicState } from "@/lib/youtube-music"
+import type { SelectedVerse } from "@/components/slide-stage"
 
 interface LeftRailProps {
   mode: Mode
@@ -14,17 +13,15 @@ interface LeftRailProps {
   recent: HistoryItem[]
   onSelectRecent: (item: HistoryItem) => void
   onClearRecent: () => void
-  musicState: MusicState
-  musicUrl: string | null
-  slideshowOnline: boolean
-  onOpenOutput: () => void
-  onMusicLoad: (url: string) => void
-  onMusicPlay: () => void
-  onMusicPause: () => void
-  onMusicNext: () => void
-  onMusicPrev: () => void
-  onMusicVolume: (v: number) => void
-  onMusicStop: () => void
+  queue: SelectedVerse[]
+  queueCursor: number
+  onQueuePreviewAt: (idx: number) => void
+  onQueueProjectAt: (idx: number) => void
+  onQueueRemove: (id: string) => void
+  onQueueReorder: (from: number, to: number) => void
+  onQueuePrev: () => void
+  onQueueNext: () => void
+  onClearQueue: () => void
 }
 
 const MODES: { id: Mode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -33,34 +30,21 @@ const MODES: { id: Mode; label: string; icon: React.ComponentType<{ className?: 
   { id: "media", label: "Media", icon: ImageIcon },
 ]
 
-function relativeTime(ts: number) {
-  const diff = Date.now() - ts
-  const m = Math.floor(diff / 60_000)
-  if (m < 1) return "just now"
-  if (m < 60) return `${m}m`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h`
-  const d = Math.floor(h / 24)
-  return `${d}d`
-}
-
 export function LeftRail({
   mode,
   onModeChange,
   recent,
   onSelectRecent,
   onClearRecent,
-  musicState,
-  musicUrl,
-  slideshowOnline,
-  onOpenOutput,
-  onMusicLoad,
-  onMusicPlay,
-  onMusicPause,
-  onMusicNext,
-  onMusicPrev,
-  onMusicVolume,
-  onMusicStop,
+  queue,
+  queueCursor,
+  onQueuePreviewAt,
+  onQueueProjectAt,
+  onQueueRemove,
+  onQueueReorder,
+  onQueuePrev,
+  onQueueNext,
+  onClearQueue,
 }: LeftRailProps) {
   return (
     <aside className="w-[320px] shrink-0 h-full border-r border-border bg-card/30 flex flex-col">
@@ -100,76 +84,22 @@ export function LeftRail({
         </ul>
       </nav>
 
-      <div className="flex items-center justify-between px-3 pt-4 pb-2">
-        <span className="eyebrow">Recent</span>
-        {recent.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={onClearRecent}
-                className="size-6 grid place-items-center text-muted-foreground hover:text-foreground rounded transition-colors"
-                aria-label="Clear recent"
-              >
-                <RotateCcw className="size-3" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Clear recent</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
+      <QueuePane
+        queue={queue}
+        queueCursor={queueCursor}
+        onPreviewAt={onQueuePreviewAt}
+        onProjectAt={onQueueProjectAt}
+        onRemove={onQueueRemove}
+        onReorder={onQueueReorder}
+        onPrev={onQueuePrev}
+        onNext={onQueueNext}
+        onClear={onClearQueue}
+      />
 
-      <ScrollArea className="flex-1 min-h-0">
-        <ul className="px-2 pb-3 space-y-0.5">
-          {recent.length === 0 ? (
-            <li className="px-2 py-6 text-center">
-              <p className="text-xs text-muted-foreground">
-                Nothing yet — items you take live will appear here.
-              </p>
-            </li>
-          ) : (
-            recent.map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => onSelectRecent(item)}
-                  className="group w-full text-left px-2.5 py-2 rounded-md hover:bg-accent/60 transition-colors"
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className="text-[12px] font-mono text-foreground truncate">
-                        {item.reference || "Note"}
-                      </span>
-                      {item.version && (
-                        <span className="text-[9.5px] font-mono px-1 py-px rounded border border-border text-muted-foreground shrink-0 tracking-wider">
-                          {item.version}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-                      {relativeTime(item.timestamp)}
-                    </span>
-                  </div>
-                  <p className="text-[11.5px] text-muted-foreground line-clamp-2 mt-0.5">
-                    {stripHtml(item.text)}
-                  </p>
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-      </ScrollArea>
-
-      <MusicBar
-        state={musicState}
-        url={musicUrl}
-        slideshowOnline={slideshowOnline}
-        onOpenOutput={onOpenOutput}
-        onLoad={onMusicLoad}
-        onPlay={onMusicPlay}
-        onPause={onMusicPause}
-        onNext={onMusicNext}
-        onPrev={onMusicPrev}
-        onVolume={onMusicVolume}
-        onStop={onMusicStop}
+      <RecentSection
+        recent={recent}
+        onSelectRecent={onSelectRecent}
+        onClearRecent={onClearRecent}
       />
 
       <div className="border-t border-border p-2">
@@ -177,11 +107,4 @@ export function LeftRail({
       </div>
     </aside>
   )
-}
-
-function stripHtml(s: string) {
-  if (typeof window === "undefined") return s.replace(/<[^>]+>/g, "")
-  const tmp = document.createElement("div")
-  tmp.innerHTML = s
-  return tmp.textContent || ""
 }
