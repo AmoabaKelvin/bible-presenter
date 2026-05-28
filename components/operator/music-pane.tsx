@@ -17,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Popover,
   PopoverContent,
@@ -258,9 +257,10 @@ export function MusicPane({
         </div>
       </div>
 
-      {/* Playlist */}
+      {/* Playlist — plain overflow-y-auto (not Radix ScrollArea) so the
+          row width is bounded by the rail and titles truncate properly. */}
       {hasPlaylist ? (
-        <ScrollArea className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-thin">
           <ul className="px-2 py-2 space-y-0.5">
             {(state.playlistVideoIds ?? []).map((videoId, i) => {
               const track = tracks[videoId]
@@ -317,7 +317,7 @@ export function MusicPane({
               )
             })}
           </ul>
-        </ScrollArea>
+        </div>
       ) : (
         <div className="flex-1 min-h-0 grid place-items-center px-6 pb-4 text-center">
           <p className="text-[11.5px] text-muted-foreground leading-relaxed">
