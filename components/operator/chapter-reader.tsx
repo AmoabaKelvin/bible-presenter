@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -48,6 +48,9 @@ export function ChapterReader({
 }: ChapterReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  // Position + height of the gliding selection highlight, in px relative to the
+  // verse list. Null when nothing is selected.
+  const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null)
 
   // Reset scroll position when chapter changes
   useEffect(() => {
@@ -67,6 +70,38 @@ export function ChapterReader({
     if (!li) return
     li.scrollIntoView({ block: "center", behavior: "smooth" })
   }, [selectedVerse, rangeStart, verses])
+
+  // Measure the selection span (single verse or a range) so the highlight can
+  // glide/resize to it via a CSS transition.
+  const measureHighlight = useCallback(() => {
+    const list = listRef.current
+    if (!list || verses.length === 0) return setHighlight(null)
+    const start = rangeStart ?? selectedVerse
+    const end = rangeEnd ?? start
+    if (start == null || end == null) return setHighlight(null)
+    const startLi = list.querySelector<HTMLLIElement>(`[data-verse-number="${start}"]`)
+    const endLi = list.querySelector<HTMLLIElement>(`[data-verse-number="${end}"]`)
+    if (!startLi || !endLi) return setHighlight(null)
+    const top = startLi.offsetTop
+    setHighlight({ top, height: endLi.offsetTop + endLi.offsetHeight - top })
+  }, [selectedVerse, rangeStart, rangeEnd, verses])
+
+  useLayoutEffect(() => {
+    measureHighlight()
+  }, [measureHighlight])
+
+  // Re-measure when the list resizes (panel drag, font load, window resize).
+  useEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const ro = new ResizeObserver(() => measureHighlight())
+    ro.observe(list)
+    window.addEventListener("resize", measureHighlight)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", measureHighlight)
+    }
+  }, [measureHighlight])
 
   if (!book || !chapter) return null
 
@@ -106,7 +141,17 @@ export function ChapterReader({
           </span>
         </header>
 
-        <ul ref={listRef}>
+        <ul ref={listRef} className="relative">
+          {highlight && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -left-4 -right-4 rounded-md bg-foreground/[0.06] transition-[transform,height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{
+                transform: `translateY(${highlight.top}px)`,
+                height: highlight.height,
+              }}
+            />
+          )}
           {verses.map((v) => {
             const active = inRange(v.number) || selectedVerse === v.number
             return (
@@ -116,7 +161,7 @@ export function ChapterReader({
                 onClick={(e) => onSelectVerse(v.number, e.shiftKey)}
                 onDoubleClick={() => onDoubleClickVerse(v.number)}
                 className={`group relative flex gap-5 py-3 pr-12 pl-4 -mx-4 rounded-md cursor-pointer transition-colors ${
-                  active ? "bg-foreground/[0.06]" : "hover:bg-accent/70"
+                  active ? "" : "hover:bg-accent/70"
                 }`}
               >
                 <span

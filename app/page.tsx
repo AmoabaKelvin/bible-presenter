@@ -82,8 +82,8 @@ export default function OperatorPage() {
   const [chapterLoading, setChapterLoading] = useState(false)
   const [chapterError, setChapterError] = useState<string | null>(null)
   const [pendingVerseSelection, setPendingVerseSelection] = useState<number | null>(null)
-  // Set by the jump-to-passage typeahead. Builds + projects the verse to live
-  // as soon as chapterVerses for the target reference populates.
+  // Set by Enter in the jump-to-passage typeahead. Builds + projects the verse
+  // to live as soon as chapterVerses for the target reference populates.
   const [pendingProjectVerse, setPendingProjectVerse] = useState<
     { book: BibleBook; chapter: number; verse: number } | null
   >(null)
@@ -596,7 +596,19 @@ export default function OperatorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterVerses, pendingVerseSelection])
 
-  // Drive a jump from the typeahead all the way to live projection.
+  // Live preview as the verse is typed in the jump-to-passage typeahead:
+  // navigate to the reference and select the verse — highlight, build the
+  // preview, and scroll it into view — exactly like a single click in the
+  // reader. handleReferenceChange applies the selection once the chapter loads.
+  const handleJumpSelect = (
+    book: BibleBook,
+    chapter: number,
+    verse: number,
+  ) => {
+    handleReferenceChange(book, chapter, verse)
+  }
+
+  // Enter in the typeahead drives the jump all the way to live projection.
   const handleJumpProject = (
     book: BibleBook,
     chapter: number,
@@ -653,6 +665,22 @@ export default function OperatorPage() {
     setRangeEndVerse(null)
     setPreviewVerses(buildSelectedVerses(verse, verse))
   }
+
+  // Arrow up/down step the single-verse selection within the current chapter.
+  const stepSelectedVerse = useCallback(
+    (delta: number) => {
+      if (!selectedBook || !selectedChapter || selectedVerse === null) return
+      const verseCount = selectedBook.chapters[selectedChapter - 1]
+      if (!verseCount) return
+      const target = Math.min(Math.max(selectedVerse + delta, 1), verseCount)
+      if (target === selectedVerse) return
+      setSelectedVerse(target)
+      setRangeStartVerse(target)
+      setRangeEndVerse(null)
+      setPreviewVerses(buildSelectedVerses(target, target))
+    },
+    [selectedBook, selectedChapter, selectedVerse, buildSelectedVerses],
+  )
 
   const handleDoubleClickVerse = (verse: number) => {
     if (!selectedBook || !selectedChapter) return
@@ -964,7 +992,9 @@ export default function OperatorPage() {
       chapter: 0,
       verse: 0,
       text: noteText.trim(),
-      reference: noteTitle.trim() || "Note",
+      // No title → no heading on the slide; just show the note body. The
+      // recent list falls back to a "Note" label on its own.
+      reference: noteTitle.trim(),
     }
   }
 
@@ -1142,6 +1172,13 @@ export default function OperatorPage() {
         if (queue.length === 0) return
         e.preventDefault()
         queuePrev()
+      } else if (
+        (e.key === "ArrowDown" || e.key === "ArrowUp") &&
+        mode === "bible" &&
+        selectedVerse !== null
+      ) {
+        e.preventDefault()
+        stepSelectedVerse(e.key === "ArrowDown" ? 1 : -1)
       } else if (e.key === "]" && selectedBook && selectedChapter) {
         const next = getNextChapterRef(selectedBook, selectedChapter)
         if (next) {
@@ -1158,7 +1195,17 @@ export default function OperatorPage() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [goLive, queue.length, queueNext, queuePrev, selectedBook, selectedChapter])
+  }, [
+    goLive,
+    queue.length,
+    queueNext,
+    queuePrev,
+    selectedBook,
+    selectedChapter,
+    mode,
+    selectedVerse,
+    stepSelectedVerse,
+  ])
 
   return (
     <div className="h-screen flex bg-background text-foreground">
@@ -1193,6 +1240,7 @@ export default function OperatorPage() {
             chapterError={chapterError}
             onVersionChange={setVersion}
             onReferenceChange={handleReferenceChange}
+            onJumpSelect={handleJumpSelect}
             onJumpProject={handleJumpProject}
             onSelectVerse={handleSelectVerse}
             onDoubleClickVerse={handleDoubleClickVerse}

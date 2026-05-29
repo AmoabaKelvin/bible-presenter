@@ -141,7 +141,7 @@ export function MusicPane({
     (state.videoId && !isSpotify ? tracks[state.videoId]?.thumbnailUrl : undefined)
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="flex-1 min-h-[360px] flex flex-col">
       <header className="px-4 py-2.5 flex items-center justify-between border-b border-border/60">
         <div className="flex items-baseline gap-2">
           <span className="eyebrow">Music</span>
