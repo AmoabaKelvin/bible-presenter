@@ -44,6 +44,7 @@ interface BiblePaneProps {
   chapterError: string | null
   onVersionChange: (v: string) => void
   onReferenceChange: (book: BibleBook | null, chapter: number | null, verse?: number) => void
+  onJumpSelect: (book: BibleBook, chapter: number, verse: number) => void
   onJumpProject: (book: BibleBook, chapter: number, verse: number) => void
   onSelectVerse: (verse: number, shiftKey: boolean) => void
   onDoubleClickVerse: (verse: number) => void
@@ -65,6 +66,7 @@ export function BiblePane({
   chapterError,
   onVersionChange,
   onReferenceChange,
+  onJumpSelect,
   onJumpProject,
   onSelectVerse,
   onDoubleClickVerse,
@@ -120,6 +122,7 @@ export function BiblePane({
         <div className="flex-1" />
 
         <ScriptureTypeahead
+          onSelect={onJumpSelect}
           onProject={onJumpProject}
           onNavigate={(book, chapter) => onReferenceChange(book, chapter)}
         />

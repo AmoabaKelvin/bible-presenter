@@ -13,8 +13,11 @@ import { allBooks, type BibleBook } from "@/lib/bible-data"
 type Stage = "book" | "chapter" | "verse"
 
 export interface ScriptureTypeaheadProps {
-  /** Project a verse straight to live. */
+  /** Project a verse straight to live (Enter). */
   onProject: (book: BibleBook, chapter: number, verse: number) => void
+  /** Live preview as the verse is typed — navigate to it, highlight it, and
+   *  scroll it into view, exactly like a single click on it in the reader. */
+  onSelect: (book: BibleBook, chapter: number, verse: number) => void
   /** Fired when only book + chapter are committed (no verse). Used for navigation parity with the previous parser. */
   onNavigate?: (book: BibleBook, chapter: number) => void
 }
@@ -63,6 +66,7 @@ export const SCRIPTURE_TYPEAHEAD_INPUT_ID = "scripture-typeahead-input"
 
 export function ScriptureTypeahead({
   onProject,
+  onSelect,
   onNavigate,
 }: ScriptureTypeaheadProps) {
   const [stage, setStage] = useState<Stage>("book")
@@ -193,7 +197,16 @@ export function ScriptureTypeahead({
       // Digits only.
       setChapterInput(value.replace(/\D/g, ""))
     } else {
-      setVerseInput(value.replace(/\D/g, ""))
+      const digits = value.replace(/\D/g, "")
+      setVerseInput(digits)
+      // Live-preview the typed verse: highlight it and scroll it into view,
+      // exactly like a single click. Enter still projects it to live.
+      if (book && chapter && digits) {
+        const n = Number(digits)
+        const verseCount = book.chapters[chapter - 1]
+        const clamped = Math.min(Math.max(n, 1), verseCount)
+        onSelect(book, chapter, clamped)
+      }
     }
   }
 

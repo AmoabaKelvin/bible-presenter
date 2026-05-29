@@ -123,7 +123,7 @@ export function RightRail({
   const hasPreview = previewVerses.length > 0 || !!previewMediaUrl
 
   return (
-    <aside className="w-[500px] shrink-0 h-full border-l border-border bg-card/30 flex flex-col">
+    <aside className="w-[500px] shrink-0 h-full border-l border-border bg-card/30 flex flex-col overflow-y-auto">
       {/* Slide presentation settings */}
       <div className="h-14 shrink-0 px-4 border-b border-border flex items-center justify-between gap-2">
         <span className="eyebrow">Slide</span>
@@ -158,7 +158,7 @@ export function RightRail({
       </div>
 
       {/* PREVIEW */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border shrink-0">
         <div className="flex items-center justify-between mb-2.5">
           <span className="eyebrow">Preview</span>
           <div className="flex items-center gap-1">
@@ -249,7 +249,7 @@ export function RightRail({
       </div>
 
       {/* LIVE */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border shrink-0">
         <div className="flex items-center justify-between mb-2.5">
           <span className="flex items-center gap-2 eyebrow">
             {isLive && <span className="live-dot" />}
