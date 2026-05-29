@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { ChevronRight, Search, X } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { ChevronRight, Search, X, CloudDownload } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { OfflineManager } from "./offline-manager"
 import {
   Select,
   SelectContent,
@@ -28,6 +30,7 @@ import { ChapterReader, type ChapterVerse } from "./chapter-reader"
 import { ScriptureTypeahead } from "./scripture-typeahead"
 import { ScriptureSearchResults } from "./scripture-search-results"
 import type { ScriptureSearchResult } from "@/lib/scripture-search"
+import { listDownloadedVersions } from "@/lib/bible-cache"
 
 interface BiblePaneProps {
   selectedBook: BibleBook | null
@@ -73,6 +76,23 @@ export function BiblePane({
   const [bookQuery, setBookQuery] = useState("")
   const searchActive = bookQuery.trim().length >= 2
 
+  // Track which versions are cached for offline so the selector can passively
+  // mark them. Refreshed on mount and whenever the dropdown opens, so it
+  // reflects downloads made in the offline manager.
+  const [downloadedVersions, setDownloadedVersions] = useState<Set<string>>(
+    new Set(),
+  )
+  const refreshDownloaded = useCallback(() => {
+    listDownloadedVersions().then((metas) =>
+      setDownloadedVersions(
+        new Set(metas.filter((m) => m.complete).map((m) => m.code)),
+      ),
+    )
+  }, [])
+  useEffect(() => {
+    refreshDownloaded()
+  }, [refreshDownloaded])
+
   // View state machine:
   // - no book → books grid
   // - book but no chapter → chapter grid
@@ -104,19 +124,46 @@ export function BiblePane({
           onNavigate={(book, chapter) => onReferenceChange(book, chapter)}
         />
 
-        <Select value={version} onValueChange={onVersionChange}>
+        <Select
+          value={version}
+          onValueChange={onVersionChange}
+          onOpenChange={(open) => open && refreshDownloaded()}
+        >
           <SelectTrigger size="sm" className="h-9 w-auto min-w-0 px-2.5 gap-1.5 text-xs font-mono">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="end" className="max-h-[60vh]">
             {BIBLE_VERSIONS.map((v) => (
               <SelectItem key={v.code} value={v.code} className="text-xs">
-                <span className="font-mono mr-2">{v.code}</span>
+                <span className="font-mono mr-2 inline-flex items-center gap-1.5">
+                  <span
+                    className={`size-1.5 rounded-full ${downloadedVersions.has(v.code) ? "bg-emerald-500" : "bg-transparent"}`}
+                    aria-label={downloadedVersions.has(v.code) ? "Available offline" : undefined}
+                  />
+                  {v.code}
+                </span>
                 <span className="text-muted-foreground">{v.name}</span>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 px-2.5 gap-1.5 text-xs"
+              aria-label="Offline downloads"
+            >
+              <CloudDownload className="size-3.5" />
+              Offline
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" sideOffset={6} className="w-auto p-3">
+            <OfflineManager />
+          </PopoverContent>
+        </Popover>
       </header>
 
       {/* Books view — search the whole Bible, or browse books when empty */}
