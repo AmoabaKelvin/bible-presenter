@@ -855,8 +855,16 @@ export default function OperatorPage() {
   // ── Queue helpers ──────────────────────────────────────────────────
   const addToQueue = (verses: SelectedVerse[]) => {
     if (verses.length === 0) return
-    // Use unique queue-item IDs so the same verse can be queued multiple times
-    const stamped = verses.map((v) => ({ ...v, id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }))
+    // Use unique queue-item IDs so the same verse can be queued multiple times.
+    // Preserve the "note-" marker so note slides still render their markdown
+    // when projected from the queue (the slide keys note rendering off the id).
+    const stamped = verses.map((v) => {
+      const notePrefix = v.id.startsWith("note-") ? "note-" : ""
+      return {
+        ...v,
+        id: `${notePrefix}q-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      }
+    })
     setQueue((q) => [...q, ...stamped])
   }
 

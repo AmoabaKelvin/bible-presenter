@@ -223,11 +223,11 @@ export function RightRail({
           <Button
             onClick={onGoLive}
             disabled={!hasPreview}
-            className="flex-1 h-10 text-sm font-medium"
+            className="flex-1 h-10 text-sm font-medium text-white bg-[color-mix(in_oklch,var(--live)_68%,black)] hover:bg-[color-mix(in_oklch,var(--live)_80%,black)] focus-visible:ring-live/40"
           >
             <Radio className="size-4 mr-2" />
             Go live
-            <kbd className="ml-auto px-1.5 py-0.5 text-[10px] font-mono rounded border border-background/30 bg-background/10">
+            <kbd className="ml-auto px-1.5 py-0.5 text-[10px] font-mono rounded border border-white/30 bg-white/15 text-white">
               ␣
             </kbd>
           </Button>
