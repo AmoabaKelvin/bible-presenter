@@ -19,33 +19,25 @@ export interface SelectedVerse {
   version?: string
 }
 
-const VERSE_PX: Record<FontSize, number> = {
-  small: 56,
-  medium: 80,
-  large: 104,
-  "extra-large": 140,
+// The chosen level sets how much of the slide the text fills. The text is
+// auto-fit to fill the available area, then scaled by the level's fraction.
+// Because every level derives from the same fitted baseline, a larger level is
+// always larger than a smaller one — regardless of how many verses are shown.
+const FILL: Record<FontSize, number> = {
+  small: 0.5,
+  medium: 0.66,
+  large: 0.82,
+  "extra-large": 0.95,
 }
 
-const REFERENCE_PX: Record<FontSize, number> = {
-  small: 32,
-  medium: 40,
-  large: 52,
-  "extra-large": 64,
-}
-
-const NOTE_TITLE_PX: Record<FontSize, number> = {
-  small: 48,
-  medium: 64,
-  large: 84,
-  "extra-large": 112,
-}
-
-const REFERENCE_MARGIN_TOP_PX: Record<FontSize, number> = {
-  small: 24,
-  medium: 32,
-  large: 40,
-  "extra-large": 48,
-}
+// Verse px used to start the measuring pass; the fit converges from here.
+const REF_FS = 100
+// Secondary text sizes and spacing, as ratios of the verse text size.
+const REFERENCE_RATIO = 0.46
+const NOTE_TITLE_RATIO = 0.8
+const REFERENCE_MARGIN_RATIO = 0.34
+const NOTE_TITLE_MARGIN_RATIO = 0.3
+const GAP_RATIO = 0.34
 
 function getTextColorHex(bgColor: string) {
   const hex = bgColor.replace("#", "")
@@ -185,7 +177,6 @@ interface SlideContentProps {
 const PADDING = 120
 const CONTENT_MAX_WIDTH = 1600
 const AVAILABLE_HEIGHT = SLIDE_HEIGHT - PADDING * 2
-const AVAILABLE_WIDTH = CONTENT_MAX_WIDTH
 
 export function SlideContent({
   verses,
@@ -202,25 +193,47 @@ export function SlideContent({
   const proseInvert = textColor === "#ffffff"
 
   const measureRef = useRef<HTMLDivElement | null>(null)
-  const [fitScale, setFitScale] = useState(1)
+  // fillFs is the verse px that fills the available area (the fitted baseline
+  // every level scales from); null while still being measured. candidate is the
+  // current trial size during the measuring pass; iterRef caps the iteration.
+  const [fillFs, setFillFs] = useState<number | null>(null)
+  const [candidate, setCandidate] = useState(REF_FS)
+  const iterRef = useRef(0)
 
+  // Re-measure only when the content changes. The fill size is independent of
+  // the chosen level, so switching levels just re-applies a fraction (below).
   useLayoutEffect(() => {
-    setFitScale(1)
-  }, [verses, fontSize])
+    setFillFs(null)
+    setCandidate(REF_FS)
+    iterRef.current = 0
+  }, [verses])
 
+  // Auto-fit by iterating: render at the trial size, measure the real (re-
+  // wrapped) height, and scale toward filling the available height. Iterating
+  // is required because height is non-linear in font size — a short verse grows
+  // to fill while many verses shrink to fit. Text wraps within the fixed width,
+  // so fitting height alone keeps it inside the slide.
   useLayoutEffect(() => {
+    if (fillFs !== null) return
     const el = measureRef.current
     if (!el) return
     const h = el.scrollHeight
-    const w = el.scrollWidth
-    if (!h || !w) return
-    const naturalH = h / fitScale
-    const naturalW = w / fitScale
-    const target = Math.min(1, AVAILABLE_HEIGHT / naturalH, AVAILABLE_WIDTH / naturalW)
-    if (Math.abs(target - fitScale) > 0.005) {
-      setFitScale(target)
+    if (!h) return
+    const ratio = AVAILABLE_HEIGHT / h
+    // Damp with sqrt: text height grows ~quadratically with font size (a bigger
+    // font means both taller lines AND more wraps), so scaling by the raw ratio
+    // overshoots and oscillates between a too-big and too-small size. The sqrt
+    // step converges to the fill size in a couple of passes.
+    const next = candidate * Math.sqrt(ratio)
+    iterRef.current += 1
+    // Settle on convergence, or on the iteration cap (content sitting on a wrap
+    // boundary can oscillate) — biasing to the smaller value so it still fits.
+    if (Math.abs(ratio - 1) < 0.02 || iterRef.current >= 8) {
+      setFillFs(Math.min(candidate, next))
+    } else {
+      setCandidate(next)
     }
-  })
+  }, [verses, fillFs, candidate])
 
   const setRefs = (node: HTMLDivElement | null) => {
     measureRef.current = node
@@ -232,17 +245,24 @@ export function SlideContent({
     }
   }
 
-  const verseFs = VERSE_PX[fontSize] * fitScale
-  const refFs = REFERENCE_PX[fontSize] * fitScale
-  const noteTitleFs = NOTE_TITLE_PX[fontSize] * fitScale
-  const refMt = REFERENCE_MARGIN_TOP_PX[fontSize] * fitScale
-  const noteTitleMb = 32 * fitScale
-  const gap = 48 * fitScale
+  // During the measuring pass render at the trial size; afterwards at the
+  // fitted baseline scaled by the chosen level's fill fraction.
+  const measuring = fillFs === null
+  const verseFs = measuring ? candidate : fillFs * FILL[fontSize]
+  const refFs = verseFs * REFERENCE_RATIO
+  const noteTitleFs = verseFs * NOTE_TITLE_RATIO
+  const refMt = verseFs * REFERENCE_MARGIN_RATIO
+  const noteTitleMb = verseFs * NOTE_TITLE_MARGIN_RATIO
+  const gap = verseFs * GAP_RATIO
 
   return (
     <div
       className="absolute inset-0 flex items-center justify-center text-center"
-      style={{ padding: PADDING, color: textColor }}
+      style={{
+        padding: PADDING,
+        color: textColor,
+        visibility: measuring ? "hidden" : "visible",
+      }}
     >
       <div
         ref={setRefs}
