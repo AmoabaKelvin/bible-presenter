@@ -55,6 +55,8 @@ import {
   removeImage,
   type BackgroundMediaKind,
 } from "@/lib/image-store"
+import { getCachedChapter, putCachedChapter, getVersionMeta } from "@/lib/bible-cache"
+import { hydrateTranslation } from "@/lib/offline-download"
 
 const HISTORY_KEY = "biblePresenterHistory"
 const VERSION_KEY = "bibleVersion"
@@ -465,6 +467,12 @@ export default function OperatorPage() {
     setChapterError(null)
     ;(async () => {
       try {
+        const cached = await getCachedChapter(version, selectedBook.name, selectedChapter)
+        if (cached) {
+          setChapterVerses(cached)
+          setChapterLoading(false)
+          return
+        }
         const bookId = getBookId(selectedBook.name)
         const translation = getApiTranslationId(version)
         const url =
@@ -483,6 +491,8 @@ export default function OperatorPage() {
             : []
         if (verses.length === 0) {
           setChapterError("This chapter is not available in the selected translation.")
+        } else {
+          putCachedChapter(version, selectedBook.name, selectedChapter, verses)
         }
         setChapterVerses(verses)
       } catch (e) {
@@ -496,6 +506,21 @@ export default function OperatorPage() {
 
     return () => controller.abort()
   }, [selectedBook, selectedChapter, version])
+
+  // ── Seed the bundled KJV translation into the offline cache once ───
+  useEffect(() => {
+    ;(async () => {
+      try {
+        if (await getVersionMeta("KJV")) return
+        const res = await fetch("/bibles/kjv.json")
+        if (!res.ok) return
+        const data = await res.json()
+        await hydrateTranslation("KJV", data.chapters)
+      } catch {
+        // asset may be absent in dev before the fetch script runs — ignore
+      }
+    })()
+  }, [])
 
   // ── Build preview verses from cached chapter ───────────────────────
   const buildSelectedVerses = useCallback(

@@ -12,10 +12,15 @@ const API_CACHE = `${VERSION}-bible-api`
 
 const OFFLINE_URL = "/offline"
 const BIBLE_API_HOST = "bible-api.eightlabs.xyz"
+const PRECACHE = [OFFLINE_URL, "/bibles/kjv.json"]
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll([OFFLINE_URL])),
+    caches.open(SHELL_CACHE).then((cache) =>
+      // Add each entry individually so a missing asset (e.g. kjv.json before
+      // the fetch script runs) doesn't fail the whole install.
+      Promise.all(PRECACHE.map((url) => cache.add(url).catch(() => {}))),
+    ),
   )
   self.skipWaiting()
 })
