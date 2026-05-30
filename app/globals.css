@@ -166,3 +166,20 @@
                 0 0 0 6px color-mix(in oklch, var(--live) 0%, transparent);
   }
 }
+
+/* Notes WYSIWYG editor (Tiptap) */
+.tiptap:focus {
+  outline: none;
+}
+.tiptap > :first-child {
+  margin-top: 0;
+}
+/* Placeholder shown only while the editor is empty. */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  pointer-events: none;
+  height: 0;
+  float: left;
+}

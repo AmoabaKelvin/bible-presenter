@@ -1,6 +1,11 @@
 "use client"
 
-import { useMemo, useRef } from "react"
+import { useEffect, useMemo } from "react"
+import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
+import Placeholder from "@tiptap/extension-placeholder"
+import Highlight from "@tiptap/extension-highlight"
+import { Markdown } from "tiptap-markdown"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -8,8 +13,14 @@ import {
   Bold,
   Italic,
   Underline,
+  Highlighter,
+  Heading2,
   List,
   ListOrdered,
+  Quote,
+  RemoveFormatting,
+  Undo2,
+  Redo2,
   Eye,
   Plus,
   Radio,
@@ -32,6 +43,14 @@ interface NotesPaneProps {
   onPreview: () => void
   onProject: () => void
   onAddToQueue: () => void
+}
+
+// tiptap-markdown stores its serializer on editor.storage.markdown but doesn't
+// augment Tiptap's Storage type, so reach it through a narrow cast.
+function getMarkdown(editor: Editor): string {
+  return (
+    editor.storage as unknown as { markdown: { getMarkdown: () => string } }
+  ).markdown.getMarkdown()
 }
 
 function relativeTime(ts: number) {
@@ -63,22 +82,53 @@ export function NotesPane({
   onProject,
   onAddToQueue,
 }: NotesPaneProps) {
-  const taRef = useRef<HTMLTextAreaElement>(null)
+  // WYSIWYG editor that reads and writes Markdown, so stored notes and the
+  // slide renderer (react-markdown) stay unchanged. Markdown shortcuts (**, #,
+  // - …) still work via StarterKit's input rules for power users.
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit,
+      Placeholder.configure({ placeholder: "Start writing…" }),
+      Highlight,
+      // html:true lets non-markdown marks (underline, highlight) round-trip as
+      // <u>/<mark>, which the slide renderer (rehypeRaw) displays.
+      Markdown.configure({ html: true, transformPastedText: true }),
+    ],
+    content: text,
+    editorProps: {
+      attributes: {
+        class:
+          "tiptap prose prose-neutral dark:prose-invert max-w-none focus:outline-none min-h-[320px] text-[19px] leading-9",
+      },
+    },
+    onUpdate: ({ editor }) => onTextChange(getMarkdown(editor)),
+  })
 
-  const wrap = (prefix: string, suffix = prefix) => {
-    const ta = taRef.current
-    if (!ta) return
-    const start = ta.selectionStart
-    const end = ta.selectionEnd
-    const before = text.substring(0, start)
-    const sel = text.substring(start, end)
-    const after = text.substring(end)
-    onTextChange(`${before}${prefix}${sel}${suffix}${after}`)
-    setTimeout(() => {
-      ta.focus()
-      ta.setSelectionRange(start + prefix.length, end + prefix.length)
-    }, 0)
-  }
+  // Reflect external content changes (selecting a saved note, New note) into
+  // the editor without feeding our own edits back in.
+  useEffect(() => {
+    if (!editor) return
+    if (text !== getMarkdown(editor)) {
+      editor.commands.setContent(text, { emitUpdate: false })
+    }
+  }, [text, editor])
+
+  const fmt = useEditorState({
+    editor,
+    selector: ({ editor }) => ({
+      bold: editor?.isActive("bold") ?? false,
+      italic: editor?.isActive("italic") ?? false,
+      underline: editor?.isActive("underline") ?? false,
+      highlight: editor?.isActive("highlight") ?? false,
+      heading: editor?.isActive("heading", { level: 2 }) ?? false,
+      bullet: editor?.isActive("bulletList") ?? false,
+      ordered: editor?.isActive("orderedList") ?? false,
+      blockquote: editor?.isActive("blockquote") ?? false,
+      canUndo: editor?.can().undo() ?? false,
+      canRedo: editor?.can().redo() ?? false,
+    }),
+  })
 
   const isEmpty = !title.trim() && !text.trim()
   const sortedNotes = useMemo(
@@ -212,34 +262,90 @@ export function NotesPane({
               placeholder="Untitled note"
               className="w-full bg-transparent border-0 outline-none text-[26px] font-semibold tracking-tight placeholder:text-muted-foreground/35 mb-3"
             />
-            <textarea
-              ref={taRef}
-              value={text}
-              onChange={(e) => onTextChange(e.target.value)}
-              placeholder="Start writing…"
-              className="flex-1 min-h-[320px] w-full resize-none border-0 bg-transparent p-0 outline-none text-[19px] leading-9 text-foreground placeholder:text-muted-foreground/35"
-            />
+            <EditorContent editor={editor} className="flex-1 min-h-0" />
           </div>
         </div>
 
         {/* Toolbar + project actions */}
         <div className="shrink-0 border-t border-border px-6 py-2.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-0.5">
-            <ToolBtn label="Bold" onClick={() => wrap("**")}>
+            <ToolBtn
+              label="Bold"
+              active={fmt?.bold}
+              onClick={() => editor?.chain().focus().toggleBold().run()}
+            >
               <Bold className="size-3.5" />
             </ToolBtn>
-            <ToolBtn label="Italic" onClick={() => wrap("*")}>
+            <ToolBtn
+              label="Italic"
+              active={fmt?.italic}
+              onClick={() => editor?.chain().focus().toggleItalic().run()}
+            >
               <Italic className="size-3.5" />
             </ToolBtn>
-            <ToolBtn label="Underline" onClick={() => wrap("<u>", "</u>")}>
+            <ToolBtn
+              label="Underline"
+              active={fmt?.underline}
+              onClick={() => editor?.chain().focus().toggleUnderline().run()}
+            >
               <Underline className="size-3.5" />
             </ToolBtn>
+            <ToolBtn
+              label="Highlight"
+              active={fmt?.highlight}
+              onClick={() => editor?.chain().focus().toggleHighlight().run()}
+            >
+              <Highlighter className="size-3.5" />
+            </ToolBtn>
             <span className="w-px h-4 bg-border mx-1" />
-            <ToolBtn label="Bullet list" onClick={() => wrap("- ", "")}>
+            <ToolBtn
+              label="Heading"
+              active={fmt?.heading}
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+            >
+              <Heading2 className="size-3.5" />
+            </ToolBtn>
+            <ToolBtn
+              label="Bullet list"
+              active={fmt?.bullet}
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+            >
               <List className="size-3.5" />
             </ToolBtn>
-            <ToolBtn label="Numbered list" onClick={() => wrap("1. ", "")}>
+            <ToolBtn
+              label="Numbered list"
+              active={fmt?.ordered}
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+            >
               <ListOrdered className="size-3.5" />
+            </ToolBtn>
+            <ToolBtn
+              label="Quote"
+              active={fmt?.blockquote}
+              onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+            >
+              <Quote className="size-3.5" />
+            </ToolBtn>
+            <span className="w-px h-4 bg-border mx-1" />
+            <ToolBtn
+              label="Clear formatting"
+              onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}
+            >
+              <RemoveFormatting className="size-3.5" />
+            </ToolBtn>
+            <ToolBtn
+              label="Undo"
+              disabled={!fmt?.canUndo}
+              onClick={() => editor?.chain().focus().undo().run()}
+            >
+              <Undo2 className="size-3.5" />
+            </ToolBtn>
+            <ToolBtn
+              label="Redo"
+              disabled={!fmt?.canRedo}
+              onClick={() => editor?.chain().focus().redo().run()}
+            >
+              <Redo2 className="size-3.5" />
             </ToolBtn>
           </div>
 
@@ -266,19 +372,29 @@ export function NotesPane({
 function ToolBtn({
   children,
   label,
+  active,
+  disabled,
   onClick,
 }: {
   children: React.ReactNode
   label: string
+  active?: boolean
+  disabled?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       title={label}
       aria-label={label}
-      className="size-7 grid place-items-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+      aria-pressed={active}
+      className={`size-7 grid place-items-center rounded-sm transition-colors disabled:opacity-30 disabled:pointer-events-none ${
+        active
+          ? "bg-accent text-foreground"
+          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+      }`}
     >
       {children}
     </button>
