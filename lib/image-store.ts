@@ -2,7 +2,7 @@
 // tabs); localStorage and the projection payload only carry small ids.
 // Each tab resolves an id to its own object URL via resolveImageUrl().
 
-const DB_NAME = "flowwwwImages"
+const DB_NAME = "flowcastImages"
 const STORE = "images"
 const DB_VERSION = 1
 

@@ -3,8 +3,8 @@ import Link from "next/link"
 import "../legal.css"
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | flowwww",
-  description: "Privacy Policy for flowwww.",
+  title: "Privacy Policy | FlowCast",
+  description: "Privacy Policy for FlowCast.",
 }
 
 export default function PrivacyPage() {
@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <main className="legal-page">
       <div className="legal-shell">
         <nav className="legal-nav">
-          <Link href="/">flowwww</Link>
+          <Link href="/">FlowCast</Link>
           <div className="flex items-center gap-4">
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
@@ -24,13 +24,13 @@ export default function PrivacyPage() {
 
         <section className="legal-content">
           <p>
-            flowwww is a personal presentation tool for displaying scripture, notes, media, and
+            FlowCast is a personal presentation tool for displaying scripture, notes, media, and
             music during worship or presentation workflows. This policy explains what information
             the app accesses and how it is used.
           </p>
 
           <h2>Information We Access</h2>
-          <p>When you connect a third-party account, flowwww may access limited account data:</p>
+          <p>When you connect a third-party account, FlowCast may access limited account data:</p>
           <ul>
             <li>
               Google/YouTube: YouTube channel profile information, YouTube playlists, and playlist
@@ -45,7 +45,7 @@ export default function PrivacyPage() {
           <h2>How We Use Information</h2>
           <p>
             Account data is used only to show your connected account, list your playlists, select
-            tracks or videos, and control playback in the slideshow/output window. flowwww does not
+            tracks or videos, and control playback in the slideshow/output window. FlowCast does not
             sell account data or use it for advertising.
           </p>
 
@@ -65,14 +65,14 @@ export default function PrivacyPage() {
 
           <h2>Data Sharing</h2>
           <p>
-            flowwww does not share your personal data with advertisers or data brokers. Data is sent
+            FlowCast does not share your personal data with advertisers or data brokers. Data is sent
             to Google/YouTube and Spotify only as needed to authenticate your account, retrieve
             playlist information, and control playback.
           </p>
 
           <h2>Google API Services User Data Policy</h2>
           <p>
-            flowwww&apos;s use and transfer of information received from Google APIs adheres to the{" "}
+            FlowCast&apos;s use and transfer of information received from Google APIs adheres to the{" "}
             <a href="https://developers.google.com/terms/api-services-user-data-policy">
               Google API Services User Data Policy
             </a>
@@ -83,7 +83,7 @@ export default function PrivacyPage() {
           <p>
             You can disconnect YouTube or Spotify inside the app. You can also revoke access from
             your Google Account permissions page or Spotify account settings. Revoking access
-            prevents flowwww from making further API requests for that account.
+            prevents FlowCast from making further API requests for that account.
           </p>
 
           <h2>Contact</h2>

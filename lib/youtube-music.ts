@@ -3,15 +3,15 @@
 // window listens for them via the `storage` event, dispatches to the
 // IFrame Player, and writes state back the other way.
 
-export const MUSIC_COMMAND_KEY = "flowwwwMusicCommand"
-export const MUSIC_STATE_KEY = "flowwwwMusicState"
-export const MUSIC_URL_KEY = "flowwwwMusicUrl"
-export const MUSIC_VOLUME_KEY = "flowwwwMusicVolume"
-export const MUSIC_PROVIDER_KEY = "flowwwwMusicProvider"
+export const MUSIC_COMMAND_KEY = "flowcastMusicCommand"
+export const MUSIC_STATE_KEY = "flowcastMusicState"
+export const MUSIC_URL_KEY = "flowcastMusicUrl"
+export const MUSIC_VOLUME_KEY = "flowcastMusicVolume"
+export const MUSIC_PROVIDER_KEY = "flowcastMusicProvider"
 
 // The slideshow tab writes a timestamp here every couple of seconds so
 // the operator can tell whether the output window is actually open.
-export const SLIDESHOW_HEARTBEAT_KEY = "flowwwwSlideshowHeartbeat"
+export const SLIDESHOW_HEARTBEAT_KEY = "flowcastSlideshowHeartbeat"
 export const SLIDESHOW_HEARTBEAT_INTERVAL_MS = 2000
 export const SLIDESHOW_HEARTBEAT_STALE_MS = 5000
 

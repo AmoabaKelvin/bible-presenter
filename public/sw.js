@@ -1,11 +1,11 @@
-// flowwww service worker — offline app shell + Bible API resilience.
+// FlowCast service worker — offline app shell + Bible API resilience.
 // Strategy:
 //   • navigations (HTML)        → network-first, fall back to cache, then /offline
 //   • same-origin static assets → cache-first (Next hashes them, so immutable)
 //   • bible-api.eightlabs.xyz   → stale-while-revalidate (chapters/search survive a drop)
 //   • everything else           → not intercepted (YouTube, Spotify, Google OAuth, etc.)
 
-const VERSION = "flowwww-v1"
+const VERSION = "flowcast-v1"
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const API_CACHE = `${VERSION}-bible-api`

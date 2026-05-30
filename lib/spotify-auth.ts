@@ -5,9 +5,9 @@ import { SPOTIFY_AUTH_SCOPES } from "@/lib/youtube-music"
 const SPOTIFY_ACCOUNTS_BASE = "https://accounts.spotify.com"
 export const SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 
-const TOKEN_COOKIE = "flowwwwSpotifySession"
-const STATE_COOKIE = "flowwwwSpotifyState"
-const RETURN_COOKIE = "flowwwwSpotifyReturnTo"
+const TOKEN_COOKIE = "flowcastSpotifySession"
+const STATE_COOKIE = "flowcastSpotifyState"
+const RETURN_COOKIE = "flowcastSpotifyReturnTo"
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 const STATE_MAX_AGE_SECONDS = 60 * 10
 

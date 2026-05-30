@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "flowwww — worship presentation console",
-    short_name: "flowwww",
+    name: "FlowCast — worship presentation console",
+    short_name: "FlowCast",
     description:
       "Project scripture, sermon notes, lyrics, and media to a second screen, with background music from Spotify or YouTube.",
     start_url: "/",

@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { HistoryItem } from "./types"
 
-const RECENT_OPEN_KEY = "flowwwwRecentOpen"
+const RECENT_OPEN_KEY = "flowcastRecentOpen"
 
 function relativeTime(ts: number) {
   const diff = Date.now() - ts

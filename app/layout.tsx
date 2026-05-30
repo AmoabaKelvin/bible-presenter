@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-// Wordmark only — soft editorial serif for the "flowwww" logotype.
+// Wordmark only — soft editorial serif for the "FlowCast" logotype.
 const fraunces = Fraunces({
   variable: "--font-wordmark",
   weight: ["400", "500", "600"],
@@ -26,15 +26,15 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
-const APP_NAME = "flowwww";
+const APP_NAME = "FlowCast";
 const APP_DESCRIPTION =
-  "flowwww is a calm presentation console for worship and gatherings — project scripture in any translation, sermon notes, media, and stream background music from Spotify or YouTube to a second screen.";
+  "FlowCast is a calm presentation console for worship and gatherings — project scripture in any translation, sermon notes, media, and stream background music from Spotify or YouTube to a second screen.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bible.kelvinamoaba.com"),
   title: {
-    default: "flowwww — worship presentation console",
-    template: "%s · flowwww",
+    default: "FlowCast — worship presentation console",
+    template: "%s · FlowCast",
   },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
@@ -64,13 +64,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: APP_NAME,
-    title: "flowwww — worship presentation console",
+    title: "FlowCast — worship presentation console",
     description: APP_DESCRIPTION,
     url: "https://bible.kelvinamoaba.com",
   },
   twitter: {
     card: "summary",
-    title: "flowwww — worship presentation console",
+    title: "FlowCast — worship presentation console",
     description: APP_DESCRIPTION,
   },
 };

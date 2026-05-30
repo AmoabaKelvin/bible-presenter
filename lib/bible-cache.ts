@@ -6,7 +6,7 @@
 export type ChapterVerse = { number: number; text: string }
 export type VersionMeta = { code: string; downloadedAt: number; chapterCount: number; complete: boolean }
 
-const DB_NAME = "flowwwwBible"
+const DB_NAME = "flowcastBible"
 const DB_VERSION = 1
 const CHAPTERS = "chapters"
 const META = "meta"

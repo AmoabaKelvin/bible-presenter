@@ -209,7 +209,7 @@ export default function SlideshowPage() {
         }
       }
       if (verseRef) document.title = `${verseRef} - Slideshow`
-      else document.title = "flowwww — Slideshow"
+      else document.title = "FlowCast — Slideshow"
     }
 
     updateFavicon()
@@ -396,7 +396,7 @@ export default function SlideshowPage() {
 
       const track = state?.track_window.current_track
       const image = track?.album?.images?.[0]?.url
-      const savedVolume = localStorage.getItem("flowwwwMusicVolume")
+      const savedVolume = localStorage.getItem("flowcastMusicVolume")
       const volume = savedVolume == null ? DEFAULT_MUSIC_STATE.volume : Number(savedVolume)
       return {
         ...DEFAULT_MUSIC_STATE,
@@ -474,10 +474,10 @@ export default function SlideshowPage() {
       if (!window.Spotify?.Player) throw new Error("Spotify SDK is unavailable.")
 
       if (!globalSpotifyPlayer) {
-        const savedVol = Number(localStorage.getItem("flowwwwMusicVolume"))
+        const savedVol = Number(localStorage.getItem("flowcastMusicVolume"))
         const initialVolume = Number.isFinite(savedVol) ? savedVol / 100 : DEFAULT_MUSIC_STATE.volume / 100
         globalSpotifyPlayer = new window.Spotify.Player({
-          name: "flowwww",
+          name: "FlowCast",
           volume: initialVolume,
           getOAuthToken: (cb) => {
             getSpotifyToken().then(cb).catch(() => cb(""))
@@ -731,7 +731,7 @@ export default function SlideshowPage() {
       dispatch(cmd)
     }
 
-    const hasGesture = () => sessionStorage.getItem("flowwwwGesture") === "1"
+    const hasGesture = () => sessionStorage.getItem("flowcastGesture") === "1"
 
     const initPlayer = () => {
       const YT = window.YT
@@ -765,7 +765,7 @@ export default function SlideshowPage() {
         events: {
           onReady: () => {
             globalReady = true
-            const savedVol = localStorage.getItem("flowwwwMusicVolume")
+            const savedVol = localStorage.getItem("flowcastMusicVolume")
             if (savedVol != null) {
               const n = Number(savedVol)
               if (!Number.isNaN(n)) globalPlayer?.setVolume(n)
@@ -893,7 +893,7 @@ export default function SlideshowPage() {
         <button
           type="button"
           onClick={() => {
-            sessionStorage.setItem("flowwwwGesture", "1")
+            sessionStorage.setItem("flowcastGesture", "1")
             setNeedsAudioGesture(false)
             try {
               globalSpotifyPlayer?.activateElement()

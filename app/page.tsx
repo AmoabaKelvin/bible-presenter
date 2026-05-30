@@ -191,7 +191,7 @@ export default function OperatorPage() {
         localStorage.removeItem(BG_KIND_KEY)
       }
     } catch (err) {
-      console.error("flowwww: failed to persist background", err)
+      console.error("FlowCast: failed to persist background", err)
     }
   }, [backgroundImageId, backgroundKind, themeLoaded])
   useEffect(() => {
@@ -445,11 +445,11 @@ export default function OperatorPage() {
   // ── Document title ─────────────────────────────────────────────────
   useEffect(() => {
     if (liveVerses[0]?.reference) {
-      document.title = `${liveVerses[0].reference} · flowwww`
+      document.title = `${liveVerses[0].reference} · FlowCast`
     } else if (selectedBook && selectedChapter) {
-      document.title = `${selectedBook.name} ${selectedChapter} · flowwww`
+      document.title = `${selectedBook.name} ${selectedChapter} · FlowCast`
     } else {
-      document.title = "flowwww"
+      document.title = "FlowCast"
     }
   }, [liveVerses, selectedBook, selectedChapter])
 
@@ -771,7 +771,7 @@ export default function OperatorPage() {
       try {
         localStorage.setItem("bibleVerseData", JSON.stringify(data))
       } catch (err) {
-        console.error("flowwww: failed to write slide data", err)
+        console.error("FlowCast: failed to write slide data", err)
       }
       window.dispatchEvent(new Event("storage"))
     },
@@ -1112,7 +1112,7 @@ export default function OperatorPage() {
         ...m,
       ])
     } catch (err) {
-      console.error("flowwww: failed to store media", err)
+      console.error("FlowCast: failed to store media", err)
     }
   }
   const deleteMedia = (id: string) => {
@@ -1146,7 +1146,7 @@ export default function OperatorPage() {
       setBackgroundImageUrl(url)
       setBackgroundKind(file.type.startsWith("video/") ? "video" : "image")
     } catch (err) {
-      console.error("flowwww: failed to store background", err)
+      console.error("FlowCast: failed to store background", err)
     }
   }
   const clearBackgroundImage = () => {

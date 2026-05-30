@@ -5,9 +5,9 @@ const GOOGLE_ACCOUNTS_BASE = "https://accounts.google.com/o/oauth2/v2/auth"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 export const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 
-const TOKEN_COOKIE = "flowwwwYouTubeSession"
-const STATE_COOKIE = "flowwwwYouTubeState"
-const RETURN_COOKIE = "flowwwwYouTubeReturnTo"
+const TOKEN_COOKIE = "flowcastYouTubeSession"
+const STATE_COOKIE = "flowcastYouTubeState"
+const RETURN_COOKIE = "flowcastYouTubeReturnTo"
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 const STATE_MAX_AGE_SECONDS = 60 * 10
 

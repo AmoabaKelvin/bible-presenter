@@ -12,7 +12,7 @@ export default function OfflinePage() {
         <BrandLogo />
         <h1 className="text-lg font-medium">You&rsquo;re offline</h1>
         <p className="text-sm text-muted-foreground">
-          flowwww can&rsquo;t reach the network right now. Pages and scripture
+          FlowCast can&rsquo;t reach the network right now. Pages and scripture
           you&rsquo;ve already opened are still available — reconnect to load
           anything new.
         </p>

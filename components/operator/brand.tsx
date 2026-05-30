@@ -26,14 +26,14 @@ interface BrandLogoProps {
   className?: string
 }
 
-// Lockup: bare waves mark + the "flowwww" wordmark in Fraunces. The mark
+// Lockup: bare waves mark + the "FlowCast" wordmark in Fraunces. The mark
 // inherits text-foreground, so it's dark on light and white on dark.
 export function BrandLogo({ className }: BrandLogoProps) {
   return (
     <div className={`flex items-center gap-2 text-foreground ${className ?? ""}`}>
       <WavesMark className="size-6 shrink-0" />
-      <span className="font-wordmark text-[19px] leading-none tracking-tight lowercase">
-        flowwww
+      <span className="font-wordmark text-[19px] leading-none tracking-tight">
+        FlowCast
       </span>
     </div>
   )
