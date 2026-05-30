@@ -48,6 +48,11 @@ export function ChapterReader({
 }: ChapterReaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  // A direct click selects a verse that's already on screen under the cursor,
+  // so it must NOT scroll (it would yank the target out from under a quick
+  // double-click). Set on click to suppress the next auto-scroll; indirect
+  // selection (keyboard, palette, jump, restore) leaves it false and centers.
+  const skipNextScrollRef = useRef(false)
   // Position + height of the gliding selection highlight, in px relative to the
   // verse list. Null when nothing is selected.
   const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null)
@@ -60,8 +65,13 @@ export function ChapterReader({
     if (sa) sa.scrollTop = 0
   }, [book?.name, chapter])
 
-  // Scroll the active verse into view when it changes (e.g. via jump search)
+  // Center the active verse when the selection changes from an INDIRECT source
+  // (keyboard stepping, Cmd+K, jump-to-passage, restore). Direct clicks set the
+  // skip flag, so they never scroll — the clicked verse is already in view.
   useEffect(() => {
+    const skip = skipNextScrollRef.current
+    skipNextScrollRef.current = false
+    if (skip) return
     const list = listRef.current
     if (!list) return
     const target = selectedVerse ?? rangeStart
@@ -158,8 +168,17 @@ export function ChapterReader({
               <li
                 key={v.number}
                 data-verse-number={v.number}
-                onClick={(e) => onSelectVerse(v.number, e.shiftKey)}
-                onDoubleClick={() => onDoubleClickVerse(v.number)}
+                onClick={(e) => {
+                  skipNextScrollRef.current = true
+                  onSelectVerse(v.number, e.shiftKey)
+                }}
+                onDoubleClick={(e) => {
+                  // Going live is a deliberate commit: ensure the verse is fully
+                  // visible if it was clipped at an edge, but never recenter it.
+                  e.currentTarget.scrollIntoView({ block: "nearest", behavior: "smooth" })
+                  onDoubleClickVerse(v.number)
+                  skipNextScrollRef.current = false
+                }}
                 className={`group relative flex gap-5 py-3 pr-12 pl-4 -mx-4 rounded-md cursor-pointer transition-colors ${
                   active ? "" : "hover:bg-accent/70"
                 }`}
