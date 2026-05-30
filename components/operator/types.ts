@@ -1,6 +1,6 @@
 import type { SelectedVerse, FontSize } from "@/components/slide-stage"
 
-export type Mode = "bible" | "notes" | "media"
+export type Mode = "bible" | "notes" | "media" | "dictionary"
 
 export interface HistoryItem {
   id: string

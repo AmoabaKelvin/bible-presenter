@@ -5,14 +5,17 @@
 //   • bible-api.eightlabs.xyz   → stale-while-revalidate (chapters/search survive a drop)
 //   • everything else           → not intercepted (YouTube, Spotify, Google OAuth, etc.)
 
-const VERSION = "flowcast-v1"
+const VERSION = "flowcast-v2"
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const API_CACHE = `${VERSION}-bible-api`
 
 const OFFLINE_URL = "/offline"
 const BIBLE_API_HOST = "bible-api.eightlabs.xyz"
-const PRECACHE = [OFFLINE_URL, "/bibles/kjv.json"]
+// Easton's (~1.2 MB) is precached for instant offline use. Webster's 1913 is
+// ~22 MB, so rather than re-downloading it on every SW install we let it be
+// cache-first at runtime (see isStaticAsset) — offline after the first lookup.
+const PRECACHE = [OFFLINE_URL, "/bibles/kjv.json", "/dictionaries/eastons.json"]
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -43,6 +46,7 @@ self.addEventListener("activate", (event) => {
 function isStaticAsset(url) {
   return (
     url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/dictionaries/") ||
     /\.(?:js|css|woff2?|png|jpg|jpeg|gif|svg|ico|webp|avif)$/.test(url.pathname)
   )
 }

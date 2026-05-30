@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Highlighter, Radio, Eraser, ExternalLink, Plus } from "lucide-react"
+import { Highlighter, Radio, Eraser, ExternalLink, Plus, BookA } from "lucide-react"
 import { SlideStage, SlideContent, type SelectedVerse, type FontSize } from "@/components/slide-stage"
 import { BackgroundPopover } from "./background-popover"
 import { MusicPane } from "./music-pane"
@@ -33,6 +33,7 @@ interface RightRailProps {
   onOpenOutput: () => void
   onApplyHighlight: (color: string) => void
   onClearHighlights: () => void
+  onDefineSelection: () => void
   onAddPreviewToQueue: () => void
   // music
   musicState: MusicState
@@ -97,6 +98,7 @@ export function RightRail({
   onOpenOutput,
   onApplyHighlight,
   onClearHighlights,
+  onDefineSelection,
   onAddPreviewToQueue,
   musicState,
   musicUrl,
@@ -189,6 +191,20 @@ export function RightRail({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Clear highlights</TooltipContent>
+            </Tooltip>
+            <span className="mx-0.5 h-3.5 w-px bg-border" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={onDefineSelection}
+                  aria-label="Define selected word"
+                  className="size-3.5 grid place-items-center rounded-sm border border-border/70 text-muted-foreground hover:bg-accent"
+                >
+                  <BookA className="size-2.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Define selected word</TooltipContent>
             </Tooltip>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Book, FileText, Image as ImageIcon } from "lucide-react"
+import { Book, FileText, Image as ImageIcon, BookA } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
 import { QueuePane } from "./queue-pane"
 import { RecentSection } from "./recent-section"
@@ -29,6 +29,7 @@ const MODES: { id: Mode; label: string; icon: React.ComponentType<{ className?: 
   { id: "bible", label: "Bible", icon: Book },
   { id: "notes", label: "Notes", icon: FileText },
   { id: "media", label: "Media", icon: ImageIcon },
+  { id: "dictionary", label: "Define", icon: BookA },
 ]
 
 export function LeftRail({

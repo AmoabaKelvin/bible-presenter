@@ -20,6 +20,7 @@ import { CommandPalette } from "@/components/operator/command-palette"
 import { BiblePane } from "@/components/operator/bible-pane"
 import { NotesPane } from "@/components/operator/notes-pane"
 import { MediaPane } from "@/components/operator/media-pane"
+import { DictionaryPane } from "@/components/operator/dictionary-pane"
 import { RightRail } from "@/components/operator/right-rail"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
 import type { HistoryItem, MediaItem, Mode, SavedNote, VerseData } from "@/components/operator/types"
@@ -110,6 +111,10 @@ export default function OperatorPage() {
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null)
   const [backgroundKind, setBackgroundKind] = useState<BackgroundMediaKind | null>(null)
   const [themeLoaded, setThemeLoaded] = useState(false)
+
+  // Dictionary — query seeded from a "Define" action elsewhere in the app.
+  const [dictionaryQuery, setDictionaryQuery] = useState("")
+  const [dictionaryQueryNonce, setDictionaryQueryNonce] = useState(0)
 
   // Notes
   const [noteTitle, setNoteTitle] = useState("")
@@ -1026,6 +1031,38 @@ export default function OperatorPage() {
     addToQueue([v])
   }
 
+  // ── Dictionary actions ─────────────────────────────────────────────
+  // A definition slide is just a "note-"-shaped SelectedVerse built by the
+  // Dictionary pane, so it rides the existing preview/live/queue plumbing.
+  // Pushing a word into the pane (e.g. from a preview selection) bumps the
+  // nonce so the same word re-triggers the lookup.
+  const defineWord = (word: string) => {
+    const w = word.trim()
+    if (!w) return
+    setDictionaryQuery(w)
+    setDictionaryQueryNonce((n) => n + 1)
+    setMode("dictionary")
+  }
+  const defineSelection = () => {
+    const text = window.getSelection()?.toString().trim()
+    if (text) defineWord(text)
+  }
+  const previewDefinition = (v: SelectedVerse) => {
+    setPreviewMedia(null)
+    setPreviewVerses([v])
+  }
+  const projectDefinition = (v: SelectedVerse) => {
+    setPreviewMedia(null)
+    setLiveMedia(null)
+    setPreviewVerses([v])
+    setLiveVerses([v])
+    writeToOutput({ verses: [v] })
+    addToHistory(v.text, v.reference, v.version)
+  }
+  const queueDefinition = (v: SelectedVerse) => {
+    addToQueue([v])
+  }
+
   // ── Saved notes (library, auto-saved) ──────────────────────────────
   // activeNoteIdRef mirrors activeNoteId synchronously so the debounced
   // autosave never creates a second note for the same draft.
@@ -1283,6 +1320,15 @@ export default function OperatorPage() {
             onProject={handleProjectMedia}
           />
         )}
+        {mode === "dictionary" && (
+          <DictionaryPane
+            onPreview={previewDefinition}
+            onProject={projectDefinition}
+            onQueue={queueDefinition}
+            externalQuery={dictionaryQuery}
+            externalQueryNonce={dictionaryQueryNonce}
+          />
+        )}
       </main>
 
       <RightRail
@@ -1307,6 +1353,7 @@ export default function OperatorPage() {
         onOpenOutput={openOutputWindow}
         onApplyHighlight={applyHighlight}
         onClearHighlights={clearHighlights}
+        onDefineSelection={defineSelection}
         onAddPreviewToQueue={queuePreviewItem}
         musicState={musicState}
         musicUrl={musicUrl}
@@ -1334,6 +1381,9 @@ export default function OperatorPage() {
         onPreview={previewSearchResult}
         onProject={projectSearchResult}
         onQueue={queueSearchResult}
+        onDefinePreview={previewDefinition}
+        onDefineProject={projectDefinition}
+        onDefineQueue={queueDefinition}
       />
     </div>
   )
