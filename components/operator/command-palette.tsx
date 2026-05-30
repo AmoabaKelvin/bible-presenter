@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Plus, Eye } from "lucide-react"
 import {
   Dialog,
@@ -27,10 +27,24 @@ import {
   type DictEntry,
 } from "@/lib/dictionary"
 
-// The palette projects a definition's first (primary) sense — the operator can
-// refine it afterward in the Define pane's editor.
-function firstSenseSlide(e: DictEntry) {
-  return definitionToSlide(e.word, parseSenses(e.definition)[0]?.text ?? e.definition)
+// One selectable palette row per sense. Webster entries fan out into a row per
+// numbered sense (so the split applies here too, just like the Define pane);
+// single-sense entries (Easton's) yield one row.
+interface DefRow {
+  word: string
+  source: DictEntry["source"]
+  text: string
+  senseNo: number | null
+}
+
+function toDefRows(entries: DictEntry[]): DefRow[] {
+  return entries.flatMap((e): DefRow[] => {
+    const senses = parseSenses(e.definition)
+    if (senses.length <= 1) {
+      return [{ word: e.word, source: e.source, text: senses[0]?.text ?? e.definition, senseNo: null }]
+    }
+    return senses.map((s) => ({ word: e.word, source: e.source, text: s.text, senseNo: s.n }))
+  })
 }
 
 type PaletteMode = "scripture" | "dictionary"
@@ -123,10 +137,7 @@ export function CommandPalette({
     onPreview(r)
     close()
   }
-  const projectDef = (e: DictEntry) => {
-    onDefineProject(firstSenseSlide(e))
-    close()
-  }
+  const defRows = useMemo(() => toDefRows(defEntries), [defEntries])
 
   const isDict = paletteMode === "dictionary"
   const showHint = query.trim().length < 2
@@ -198,49 +209,60 @@ export function CommandPalette({
                   : `No verses match “${activeQuery}”.`}
               </div>
             )}
-            {isDict && defEntries.length > 0 && (
+            {isDict && defRows.length > 0 && (
               <CommandGroup heading="Dictionary">
-                {defEntries.map((e, i) => (
-                  <CommandItem
-                    key={`${e.source}-${i}`}
-                    value={`${e.word}-${e.source}-${i}`}
-                    onSelect={() => projectDef(e)}
-                    className="group flex-col items-start gap-1 py-2.5"
-                  >
-                    <div className="flex w-full items-center justify-between gap-2">
-                      <span className="font-serif text-[15px] capitalize text-foreground">
-                        {e.word}
-                        <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {e.source === "eastons" ? "Easton's" : "Webster's"}
+                {defRows.map((row, i) => {
+                  const slide = () => definitionToSlide(row.word, row.text)
+                  return (
+                    <CommandItem
+                      key={`${row.source}-${row.word}-${i}`}
+                      value={`${row.word}-${row.source}-${i}`}
+                      onSelect={() => {
+                        onDefineProject(slide())
+                        close()
+                      }}
+                      className="group flex-col items-start gap-1 py-2.5"
+                    >
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <span className="font-serif text-[15px] capitalize text-foreground">
+                          {row.word}
+                          {row.senseNo != null && (
+                            <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                              ·{row.senseNo}
+                            </span>
+                          )}
+                          <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                            {row.source === "eastons" ? "Easton's" : "Webster's"}
+                          </span>
                         </span>
-                      </span>
-                      <span className="flex items-center gap-1 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity">
-                        <RowAction
-                          label="Preview"
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            onDefinePreview(firstSenseSlide(e))
-                            close()
-                          }}
-                        >
-                          <Eye className="size-3.5" />
-                        </RowAction>
-                        <RowAction
-                          label="Add to queue"
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            onDefineQueue(firstSenseSlide(e))
-                          }}
-                        >
-                          <Plus className="size-3.5" />
-                        </RowAction>
-                      </span>
-                    </div>
-                    <p className="font-serif text-[14px] leading-snug text-foreground/80 line-clamp-2">
-                      {e.definition}
-                    </p>
-                  </CommandItem>
-                ))}
+                        <span className="flex items-center gap-1 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity">
+                          <RowAction
+                            label="Preview"
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              onDefinePreview(slide())
+                              close()
+                            }}
+                          >
+                            <Eye className="size-3.5" />
+                          </RowAction>
+                          <RowAction
+                            label="Add to queue"
+                            onClick={(ev) => {
+                              ev.stopPropagation()
+                              onDefineQueue(slide())
+                            }}
+                          >
+                            <Plus className="size-3.5" />
+                          </RowAction>
+                        </span>
+                      </div>
+                      <p className="font-serif text-[14px] leading-snug text-foreground/80 line-clamp-2">
+                        {row.text}
+                      </p>
+                    </CommandItem>
+                  )
+                })}
               </CommandGroup>
             )}
             {!isDict && results.length > 0 && (
