@@ -129,6 +129,21 @@ export function ScriptureTypeahead({
     lastChapterInputRef.current = ""
   }, [])
 
+  // After a jump, keep the book + chapter chips so the next verse in the same
+  // passage is one keystroke away; clear only the verse field and keep focus.
+  const retainAfterProject = useCallback((b: BibleBook, ch: number) => {
+    setBook(b)
+    setChapter(ch)
+    setBookQuery("")
+    setChapterInput("")
+    setVerseInput("")
+    setStage("verse")
+    setActiveIndex(0)
+    setError(false)
+    lastChapterInputRef.current = String(ch)
+    inputRef.current?.focus()
+  }, [])
+
   // Global "/" focuses the input — unless focus is already in an editable element.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -253,7 +268,7 @@ export function ScriptureTypeahead({
         if (parsed) {
           if (parsed.verse !== undefined) {
             onProject(parsed.book, parsed.chapter, parsed.verse)
-            reset()
+            retainAfterProject(parsed.book, parsed.chapter)
           } else {
             // "John 3" with no verse — do nothing per spec.
             setError(true)
@@ -306,7 +321,7 @@ export function ScriptureTypeahead({
         const verseCount = book.chapters[chapter - 1]
         const clamped = Math.min(Math.max(n, 1), verseCount)
         onProject(book, chapter, clamped)
-        reset()
+        retainAfterProject(book, chapter)
         return
       }
       return
