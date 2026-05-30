@@ -223,7 +223,7 @@ export function RightRail({
           <Button
             onClick={onGoLive}
             disabled={!hasPreview}
-            className="flex-1 h-10 text-sm font-medium text-white bg-[color-mix(in_oklch,var(--live)_68%,black)] hover:bg-[color-mix(in_oklch,var(--live)_80%,black)] focus-visible:ring-live/40"
+            className="flex-1 h-10 text-sm font-medium bg-go-live text-white hover:bg-go-live/90 focus-visible:ring-go-live/40"
           >
             <Radio className="size-4 mr-2" />
             Go live

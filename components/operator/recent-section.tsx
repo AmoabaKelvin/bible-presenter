@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronDown, RotateCcw } from "lucide-react"
+import { ChevronDown, Trash2 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { HistoryItem } from "./types"
@@ -93,7 +93,7 @@ export function RecentSection({ recent, onSelectRecent, onClearRecent }: RecentS
                   className="size-6 grid place-items-center text-muted-foreground hover:text-foreground rounded transition-colors"
                   aria-label="Clear recent"
                 >
-                  <RotateCcw className="size-3" />
+                  <Trash2 className="size-3" />
                 </span>
               </TooltipTrigger>
               <TooltipContent side="right">Clear recent</TooltipContent>
