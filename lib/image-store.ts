@@ -51,6 +51,11 @@ function getBlob(id: string): Promise<Blob | undefined> {
   )
 }
 
+export function getStoredImageBlob(id: string | null | undefined): Promise<Blob | undefined> {
+  if (!id || isDirectUrl(id)) return Promise.resolve(undefined)
+  return getBlob(id)
+}
+
 function deleteBlob(id: string): Promise<void> {
   return openDb().then(
     (db) =>
@@ -82,6 +87,55 @@ export async function storeImage(file: Blob): Promise<string> {
   await putBlob(id, file)
   urlCache.set(id, URL.createObjectURL(file))
   return id
+}
+
+function canvasToBlob(canvas: OffscreenCanvas | HTMLCanvasElement, type: string, quality: number) {
+  if ("convertToBlob" in canvas) {
+    return canvas.convertToBlob({ type, quality })
+  }
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality))
+}
+
+export async function createImageThumbnailBlob(
+  source: Blob,
+  maxDimension = 480,
+): Promise<Blob | null> {
+  if (!source.type.startsWith("image/")) return null
+
+  let bitmap: ImageBitmap | null = null
+  try {
+    bitmap = await createImageBitmap(source)
+    const largestSide = Math.max(bitmap.width, bitmap.height)
+    if (largestSide <= maxDimension && source.size <= 180_000) return source
+
+    const scale = Math.min(1, maxDimension / largestSide)
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas =
+      typeof OffscreenCanvas !== "undefined"
+        ? new OffscreenCanvas(width, height)
+        : Object.assign(document.createElement("canvas"), { width, height })
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return null
+
+    ctx.drawImage(bitmap, 0, 0, width, height)
+    return await canvasToBlob(canvas, "image/webp", 0.82)
+  } catch {
+    return null
+  } finally {
+    bitmap?.close()
+  }
+}
+
+export async function storeImageThumbnail(source: Blob): Promise<string | null> {
+  const thumbnail = await createImageThumbnailBlob(source)
+  if (!thumbnail) return null
+  return storeImage(thumbnail)
+}
+
+export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl)
+  return response.blob()
 }
 
 // Resolve an id (or a legacy/direct URL) to a renderable URL.

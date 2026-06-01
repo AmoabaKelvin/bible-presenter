@@ -202,12 +202,10 @@ export function parseSenses(definition: string): Sense[] {
   return senses
 }
 
-// Turn a word + chosen body text into a projectable slide. The "note-" id
-// prefix makes slide-stage render it as a titled markdown slide (word heading +
-// body), and lets it flow through the existing preview → go live → queue
-// pipeline unchanged. `body` is the (possibly operator-edited) sense text.
+// Turn a word + chosen body text into a projectable definition slide.
 export function definitionToSlide(word: string, body: string): SelectedVerse {
   return {
+    kind: "definition",
     id: `note-def-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     book: "",
     chapter: 0,

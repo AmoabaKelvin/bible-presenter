@@ -1,4 +1,8 @@
-import { getFreshSpotifySession, spotifyFetch, toPublicSpotifySession } from "@/lib/spotify-auth"
+import {
+  getFreshSpotifySession,
+  spotifyFetch,
+  toPublicSpotifyStatusSession,
+} from "@/lib/spotify-auth"
 
 export const runtime = "nodejs"
 
@@ -13,27 +17,18 @@ export async function GET() {
     if (!profile.ok) {
       return Response.json({
         connected: true,
-        session: toStatusSession(session),
+        session: toPublicSpotifyStatusSession(session),
         profile: null,
       })
     }
 
     return Response.json({
       connected: true,
-      session: toStatusSession(session),
+      session: toPublicSpotifyStatusSession(session),
       profile: await profile.json(),
     })
   } catch (err) {
     console.error("Spotify status failed", err)
     return Response.json({ connected: false, error: "Failed to read Spotify status." }, { status: 500 })
-  }
-}
-
-function toStatusSession(session: Parameters<typeof toPublicSpotifySession>[0]) {
-  const publicSession = toPublicSpotifySession(session)
-  return {
-    scope: publicSession.scope,
-    expiresAt: publicSession.expiresAt,
-    expiresIn: publicSession.expiresIn,
   }
 }

@@ -1,9 +1,10 @@
-import type { SelectedVerse, FontSize } from "@/components/slide-stage"
+import type { SelectedVerse, FontSize, SlideKind } from "@/components/slide-stage"
 
 export type Mode = "bible" | "notes" | "media" | "dictionary"
 
 export interface HistoryItem {
   id: string
+  kind?: SlideKind
   reference: string
   text: string
   timestamp: number
@@ -14,6 +15,7 @@ export interface MediaItem {
   id: string
   name: string
   imageId?: string // IndexedDB key (new); dataUrl kept for legacy items
+  thumbnailId?: string // Small IndexedDB image for the media grid
   dataUrl?: string
   createdAt: number
 }

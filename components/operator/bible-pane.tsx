@@ -1,36 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { ChevronRight, Search, X, CloudDownload } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { OfflineManager } from "./offline-manager"
+import { useState } from "react"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  BIBLE_VERSIONS,
   getPrevChapterRef,
   getNextChapterRef,
   type BibleBook,
   type BibleRef,
 } from "@/lib/bible-data"
+import { BibleSearchBox } from "./bible-search-box"
+import { BibleToolbar, type BiblePaneView } from "./bible-toolbar"
 import { BookGrid } from "./book-grid"
 import { ChapterGrid } from "./chapter-grid"
 import { ChapterReader, type ChapterVerse } from "./chapter-reader"
-import { ScriptureTypeahead } from "./scripture-typeahead"
 import { ScriptureSearchResults } from "./scripture-search-results"
 import type { ScriptureSearchResult } from "@/lib/scripture-search"
-import { listDownloadedVersions } from "@/lib/bible-cache"
 
 interface BiblePaneProps {
   selectedBook: BibleBook | null
@@ -78,121 +61,38 @@ export function BiblePane({
   const [bookQuery, setBookQuery] = useState("")
   const searchActive = bookQuery.trim().length >= 2
 
-  // Track which versions are cached for offline so the selector can passively
-  // mark them. Refreshed on mount and whenever the dropdown opens, so it
-  // reflects downloads made in the offline manager.
-  const [downloadedVersions, setDownloadedVersions] = useState<Set<string>>(
-    new Set(),
-  )
-  const refreshDownloaded = useCallback(() => {
-    listDownloadedVersions().then((metas) =>
-      setDownloadedVersions(
-        new Set(metas.filter((m) => m.complete).map((m) => m.code)),
-      ),
-    )
-  }, [])
-  useEffect(() => {
-    refreshDownloaded()
-  }, [refreshDownloaded])
-
   // View state machine:
   // - no book → books grid
   // - book but no chapter → chapter grid
   // - book + chapter → reader
-  const view: "books" | "chapters" | "reader" =
+  const view: BiblePaneView =
     !selectedBook ? "books" : !selectedChapter ? "chapters" : "reader"
 
-  const handleBackToBooks = () => onReferenceChange(null as unknown as BibleBook, null)
+  const handleBackToBooks = () => onReferenceChange(null, null)
   const handleBackToChapters = () => {
     if (selectedBook) onReferenceChange(selectedBook, null)
   }
 
   return (
     <div className="h-full flex flex-col">
-      <header className="h-14 shrink-0 px-4 border-b border-border flex items-center gap-3">
-        <Breadcrumb
-          book={selectedBook}
-          chapter={selectedChapter}
-          view={view}
-          onHome={handleBackToBooks}
-          onBookCrumb={handleBackToChapters}
-          onChapterJump={(ch) => selectedBook && onReferenceChange(selectedBook, ch)}
-        />
-
-        <div className="flex-1" />
-
-        <ScriptureTypeahead
-          onSelect={onJumpSelect}
-          onProject={onJumpProject}
-          onNavigate={(book, chapter) => onReferenceChange(book, chapter)}
-        />
-
-        <Select
-          value={version}
-          onValueChange={onVersionChange}
-          onOpenChange={(open) => open && refreshDownloaded()}
-        >
-          <SelectTrigger size="sm" className="h-9 w-auto min-w-0 px-2.5 gap-1.5 text-xs font-mono">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end" className="max-h-[60vh]">
-            {BIBLE_VERSIONS.map((v) => (
-              <SelectItem key={v.code} value={v.code} className="text-xs">
-                <span className="font-mono mr-2 inline-flex items-center gap-1.5">
-                  <span
-                    className={`size-1.5 rounded-full ${downloadedVersions.has(v.code) ? "bg-emerald-500" : "bg-transparent"}`}
-                    aria-label={downloadedVersions.has(v.code) ? "Available offline" : undefined}
-                  />
-                  {v.code}
-                </span>
-                <span className="text-muted-foreground">{v.name}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 px-2.5 gap-1.5 text-xs"
-              aria-label="Offline downloads"
-            >
-              <CloudDownload className="size-3.5" />
-              Offline
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" sideOffset={6} className="w-auto p-3">
-            <OfflineManager />
-          </PopoverContent>
-        </Popover>
-      </header>
+      <BibleToolbar
+        book={selectedBook}
+        chapter={selectedChapter}
+        view={view}
+        version={version}
+        onVersionChange={onVersionChange}
+        onHome={handleBackToBooks}
+        onBookCrumb={handleBackToChapters}
+        onChapterJump={(chapter) => selectedBook && onReferenceChange(selectedBook, chapter)}
+        onJumpSelect={onJumpSelect}
+        onJumpProject={onJumpProject}
+        onNavigate={(book, chapter) => onReferenceChange(book, chapter)}
+      />
 
       {/* Books view — search the whole Bible, or browse books when empty */}
       {view === "books" && (
         <>
-          <div className="px-8 pt-6 pb-2 max-w-[1100px] mx-auto w-full">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                value={bookQuery}
-                onChange={(e) => setBookQuery(e.target.value)}
-                placeholder="Search the Bible — a word, phrase, or topic"
-                className="h-10 pl-10 text-sm"
-                autoFocus
-              />
-              {bookQuery && (
-                <button
-                  onClick={() => setBookQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 size-6 grid place-items-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent"
-                  aria-label="Clear"
-                >
-                  <X className="size-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
+          <BibleSearchBox query={bookQuery} onQueryChange={setBookQuery} />
           {searchActive ? (
             <ScriptureSearchResults
               query={bookQuery}
@@ -247,108 +147,5 @@ export function BiblePane({
         />
       )}
     </div>
-  )
-}
-
-interface BreadcrumbProps {
-  book: BibleBook | null
-  chapter: number | null
-  view: "books" | "chapters" | "reader"
-  onHome: () => void
-  onBookCrumb: () => void
-  onChapterJump: (ch: number) => void
-}
-
-function Breadcrumb({
-  book,
-  chapter,
-  view,
-  onHome,
-  onBookCrumb,
-  onChapterJump,
-}: BreadcrumbProps) {
-  return (
-    <nav className="flex items-center gap-1.5 text-sm" aria-label="Breadcrumb">
-      <CrumbButton
-        onClick={onHome}
-        active={view === "books"}
-        label="Bible"
-      />
-      {book && (
-        <>
-          <Sep />
-          <CrumbButton
-            onClick={onBookCrumb}
-            active={view === "chapters"}
-            label={book.name}
-          />
-        </>
-      )}
-      {book && chapter && (
-        <>
-          <Sep />
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                className="px-1.5 h-7 rounded text-foreground font-medium hover:bg-accent transition-colors inline-flex items-center gap-1"
-              >
-                {chapter}
-                <ChevronRight className="size-3 text-muted-foreground rotate-90" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" sideOffset={6} className="w-[280px] p-2">
-              <div className="grid grid-cols-6 gap-1">
-                {book.chapters.map((_, i) => {
-                  const ch = i + 1
-                  const active = chapter === ch
-                  return (
-                    <button
-                      key={ch}
-                      onClick={() => onChapterJump(ch)}
-                      className={`h-8 text-xs font-mono rounded-sm border transition-colors ${
-                        active
-                          ? "bg-foreground text-background border-foreground"
-                          : "border-border text-foreground hover:bg-accent hover:border-muted-foreground"
-                      }`}
-                    >
-                      {ch}
-                    </button>
-                  )
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </>
-      )}
-    </nav>
-  )
-}
-
-function CrumbButton({
-  onClick,
-  active,
-  label,
-}: {
-  onClick: () => void
-  active: boolean
-  label: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-1.5 h-7 rounded transition-colors inline-flex items-center ${
-        active
-          ? "text-foreground font-medium"
-          : "text-muted-foreground hover:text-foreground hover:bg-accent"
-      }`}
-    >
-      {label}
-    </button>
-  )
-}
-
-function Sep() {
-  return (
-    <ChevronRight className="size-3.5 text-muted-foreground/50 shrink-0" />
   )
 }

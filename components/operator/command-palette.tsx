@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Loader2, Plus, Eye } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -12,42 +12,16 @@ import {
   Command,
   CommandInput,
   CommandList,
-  CommandGroup,
-  CommandItem,
 } from "@/components/ui/command"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useDictionaryLookup } from "@/hooks/use-dictionary-lookup"
 import { useScriptureSearch } from "@/hooks/use-scripture-search"
 import type { ScriptureSearchResult } from "@/lib/scripture-search"
 import type { SelectedVerse } from "@/components/slide-stage"
 import {
-  lookup,
-  parseSenses,
-  definitionToSlide,
-  preloadDictionary,
-  type DictEntry,
-} from "@/lib/dictionary"
-
-// One selectable palette row per sense. Webster entries fan out into a row per
-// numbered sense (so the split applies here too, just like the Define pane);
-// single-sense entries (Easton's) yield one row.
-interface DefRow {
-  word: string
-  source: DictEntry["source"]
-  text: string
-  senseNo: number | null
-}
-
-function toDefRows(entries: DictEntry[]): DefRow[] {
-  return entries.flatMap((e): DefRow[] => {
-    const senses = parseSenses(e.definition)
-    if (senses.length <= 1) {
-      return [{ word: e.word, source: e.source, text: senses[0]?.text ?? e.definition, senseNo: null }]
-    }
-    return senses.map((s) => ({ word: e.word, source: e.source, text: s.text, senseNo: s.n }))
-  })
-}
-
-type PaletteMode = "scripture" | "dictionary"
+  DictionaryResults,
+  ScriptureResults,
+} from "./command-palette-results"
+import { PaletteKbd, PaletteModeTabs, type PaletteMode } from "./command-palette-ui"
 
 interface CommandPaletteProps {
   version: string
@@ -71,36 +45,14 @@ export function CommandPalette({
   const [open, setOpen] = useState(false)
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("scripture")
   const [query, setQuery] = useState("")
+  const isDict = paletteMode === "dictionary"
   const { results, total, loading, error, hasMore, loadMore, activeQuery } =
-    useScriptureSearch(paletteMode === "scripture" ? query : "", version)
-
-  // Dictionary lookup state (only used in "dictionary" mode).
-  const [defEntries, setDefEntries] = useState<DictEntry[]>([])
-  const [defLoading, setDefLoading] = useState(false)
-  const defReqId = useRef(0)
-
-  useEffect(() => {
-    if (paletteMode === "dictionary") preloadDictionary()
-  }, [paletteMode])
-
-  useEffect(() => {
-    if (paletteMode !== "dictionary") return
-    const q = query.trim()
-    if (q.length < 2) {
-      setDefEntries([])
-      setDefLoading(false)
-      return
-    }
-    setDefLoading(true)
-    const id = ++defReqId.current
-    const handle = setTimeout(async () => {
-      const res = await lookup(q)
-      if (id !== defReqId.current) return
-      setDefEntries(res.entries)
-      setDefLoading(false)
-    }, 200)
-    return () => clearTimeout(handle)
-  }, [query, paletteMode])
+    useScriptureSearch(isDict ? "" : query, version)
+  const {
+    entries: definitionEntries,
+    rows: definitionRows,
+    loading: definitionsLoading,
+  } = useDictionaryLookup(query, isDict)
 
   // Infinite scroll — fetch the next page as the list nears the bottom.
   // Works for both mouse-wheel scrolling and arrow-key navigation (cmdk
@@ -129,23 +81,13 @@ export function CommandPalette({
   }, [open])
 
   const close = () => setOpen(false)
-  const project = (r: ScriptureSearchResult) => {
-    onProject(r)
-    close()
-  }
-  const preview = (r: ScriptureSearchResult) => {
-    onPreview(r)
-    close()
-  }
-  const defRows = useMemo(() => toDefRows(defEntries), [defEntries])
 
-  const isDict = paletteMode === "dictionary"
   const showHint = query.trim().length < 2
   const showSearching = isDict
-    ? defLoading && defEntries.length === 0
+    ? definitionsLoading && definitionEntries.length === 0
     : loading && results.length === 0
   const showEmpty = isDict
-    ? !defLoading && !showHint && defEntries.length === 0
+    ? !definitionsLoading && !showHint && definitionEntries.length === 0
     : !loading && !error && activeQuery !== "" && results.length === 0
 
   return (
@@ -171,21 +113,7 @@ export function CommandPalette({
                 : "Search the Bible — a word, phrase, or topic…"
             }
           />
-          <div className="flex items-center gap-1 border-b px-2 py-1.5">
-            {(["scripture", "dictionary"] as PaletteMode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setPaletteMode(m)}
-                className={`h-6 px-2.5 rounded text-[11px] font-medium transition-colors ${
-                  paletteMode === m
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {m === "scripture" ? "Scripture" : "Define"}
-              </button>
-            ))}
-          </div>
+          <PaletteModeTabs value={paletteMode} onChange={setPaletteMode} />
           <CommandList className="max-h-[60vh]" onScroll={handleScroll}>
             {showHint && (
               <div className="py-10 text-center text-sm text-muted-foreground">
@@ -209,105 +137,24 @@ export function CommandPalette({
                   : `No verses match “${activeQuery}”.`}
               </div>
             )}
-            {isDict && defRows.length > 0 && (
-              <CommandGroup heading="Dictionary">
-                {defRows.map((row, i) => {
-                  const slide = () => definitionToSlide(row.word, row.text)
-                  return (
-                    <CommandItem
-                      key={`${row.source}-${row.word}-${i}`}
-                      value={`${row.word}-${row.source}-${i}`}
-                      onSelect={() => {
-                        onDefineProject(slide())
-                        close()
-                      }}
-                      className="group flex-col items-start gap-1 py-2.5"
-                    >
-                      <div className="flex w-full items-center justify-between gap-2">
-                        <span className="font-serif text-[15px] capitalize text-foreground">
-                          {row.word}
-                          {row.senseNo != null && (
-                            <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
-                              ·{row.senseNo}
-                            </span>
-                          )}
-                          <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                            {row.source === "eastons" ? "Easton's" : "Webster's"}
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-1 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity">
-                          <RowAction
-                            label="Preview"
-                            onClick={(ev) => {
-                              ev.stopPropagation()
-                              onDefinePreview(slide())
-                              close()
-                            }}
-                          >
-                            <Eye className="size-3.5" />
-                          </RowAction>
-                          <RowAction
-                            label="Add to queue"
-                            onClick={(ev) => {
-                              ev.stopPropagation()
-                              onDefineQueue(slide())
-                            }}
-                          >
-                            <Plus className="size-3.5" />
-                          </RowAction>
-                        </span>
-                      </div>
-                      <p className="font-serif text-[14px] leading-snug text-foreground/80 line-clamp-2">
-                        {row.text}
-                      </p>
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
+            {isDict && (
+              <DictionaryResults
+                rows={definitionRows}
+                onPreview={onDefinePreview}
+                onProject={onDefineProject}
+                onQueue={onDefineQueue}
+                onClose={close}
+              />
             )}
-            {!isDict && results.length > 0 && (
-              <CommandGroup
-                heading={`Scripture · ${total} ${total === 1 ? "result" : "results"}`}
-              >
-                {results.map((r, i) => (
-                  <CommandItem
-                    key={`${r.reference}-${i}`}
-                    value={`${r.reference}-${i}`}
-                    onSelect={() => project(r)}
-                    className="group flex-col items-start gap-1 py-2.5"
-                  >
-                    <div className="flex w-full items-center justify-between gap-2">
-                      <span className="font-mono text-[12px] text-muted-foreground">
-                        {r.reference}
-                      </span>
-                      <span className="flex items-center gap-1 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity">
-                        <RowAction
-                          label="Preview"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            preview(r)
-                          }}
-                        >
-                          <Eye className="size-3.5" />
-                        </RowAction>
-                        <RowAction
-                          label="Add to queue"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onQueue(r)
-                          }}
-                        >
-                          <Plus className="size-3.5" />
-                        </RowAction>
-                      </span>
-                    </div>
-                    <p
-                      className="font-serif text-[15px] leading-snug text-foreground/90 line-clamp-2 [&_em]:not-italic [&_em]:font-semibold [&_em]:text-foreground"
-                      dangerouslySetInnerHTML={{ __html: r.highlight ?? r.text }}
-                    />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+            {!isDict && (
+              <ScriptureResults
+                results={results}
+                total={total}
+                onPreview={onPreview}
+                onProject={onProject}
+                onQueue={onQueue}
+                onClose={close}
+              />
             )}
             {loading && results.length > 0 && (
               <div className="py-3 grid place-items-center">
@@ -317,48 +164,14 @@ export function CommandPalette({
           </CommandList>
           <div className="flex items-center justify-end gap-3 border-t px-3 py-2 text-[11px] text-muted-foreground">
             <span>
-              <Kbd>↵</Kbd> Project
+              <PaletteKbd>↵</PaletteKbd> Project
             </span>
             <span>
-              <Kbd>Esc</Kbd> Close
+              <PaletteKbd>Esc</PaletteKbd> Close
             </span>
           </div>
         </Command>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function RowAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: (e: React.MouseEvent) => void
-  children: React.ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          onClick={onClick}
-          className="size-6 grid place-items-center rounded-sm border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          {children}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top">{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="inline-flex items-center justify-center rounded border border-border bg-muted px-1 font-mono text-[10px]">
-      {children}
-    </kbd>
   )
 }

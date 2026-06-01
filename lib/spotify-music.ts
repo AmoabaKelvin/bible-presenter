@@ -1,5 +1,5 @@
-import type { MusicCommandInput, ParsedSpotifyRef } from "@/lib/youtube-music"
-import { parseSpotifyRef } from "@/lib/youtube-music"
+import type { MusicCommandInput } from "@/lib/music-protocol"
+import { parseSpotifyRef, type ParsedSpotifyRef } from "@/lib/music-url-parsers"
 
 export interface SpotifyAuthStatus {
   connected: boolean

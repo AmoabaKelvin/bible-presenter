@@ -1,12 +1,17 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Upload, Trash2, Radio, Eye, ImageOff } from "lucide-react"
 import type { MediaItem } from "./types"
 import { resolveImageUrl } from "@/lib/image-store"
+
+const TILE_MIN_WIDTH = 180
+const TILE_GAP = 12
+const GRID_PADDING_X = 48
+const GRID_PADDING_TOP = 8
+const OVERSCAN_ROWS = 3
 
 interface MediaPaneProps {
   items: MediaItem[]
@@ -14,6 +19,7 @@ interface MediaPaneProps {
   onDelete: (id: string) => void
   onPreview: (item: MediaItem) => void
   onProject: (item: MediaItem) => void
+  onPrepare: (item: MediaItem) => void
 }
 
 export function MediaPane({
@@ -22,8 +28,11 @@ export function MediaPane({
   onDelete,
   onPreview,
   onProject,
+  onPrepare,
 }: MediaPaneProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [viewport, setViewport] = useState({ height: 0, scrollTop: 0, width: 0 })
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
@@ -32,6 +41,69 @@ export function MediaPane({
       onUpload(file)
     })
   }
+
+  const updateViewport = useCallback(() => {
+    const node = viewportRef.current
+    if (!node) return
+
+    const next = {
+      height: node.clientHeight,
+      scrollTop: node.scrollTop,
+      width: node.clientWidth,
+    }
+    setViewport((current) =>
+      current.height === next.height &&
+      current.scrollTop === next.scrollTop &&
+      current.width === next.width
+        ? current
+        : next,
+    )
+  }, [])
+
+  useEffect(() => {
+    updateViewport()
+    const node = viewportRef.current
+    if (!node) return
+
+    const observer = new ResizeObserver(updateViewport)
+    observer.observe(node)
+    window.addEventListener("resize", updateViewport)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", updateViewport)
+    }
+  }, [updateViewport])
+
+  const virtualGrid = useMemo(() => {
+    const contentWidth = Math.max(TILE_MIN_WIDTH, viewport.width - GRID_PADDING_X)
+    const columnCount = Math.max(
+      1,
+      Math.floor((contentWidth + TILE_GAP) / (TILE_MIN_WIDTH + TILE_GAP)),
+    )
+    const tileWidth = (contentWidth - TILE_GAP * (columnCount - 1)) / columnCount
+    const rowHeight = tileWidth * (9 / 16)
+    const rowStride = rowHeight + TILE_GAP
+    const totalRows = Math.ceil(items.length / columnCount)
+    const rowScrollTop = Math.max(0, viewport.scrollTop - GRID_PADDING_TOP)
+    const visibleStartRow = Math.floor(rowScrollTop / rowStride)
+    const visibleEndRow = Math.ceil((rowScrollTop + viewport.height) / rowStride)
+    const startRow = Math.max(0, visibleStartRow - OVERSCAN_ROWS)
+    const endRow = Math.min(totalRows, visibleEndRow + OVERSCAN_ROWS)
+    const startIndex = startRow * columnCount
+    const endIndex = Math.min(items.length, endRow * columnCount)
+    const totalHeight =
+      totalRows > 0 ? totalRows * rowHeight + Math.max(0, totalRows - 1) * TILE_GAP : 0
+
+    return {
+      columnCount,
+      items: items.slice(startIndex, endIndex).map((item, visibleIndex) => ({
+        item,
+        index: startIndex + visibleIndex,
+      })),
+      offsetTop: startRow * rowStride,
+      totalHeight,
+    }
+  }, [items, viewport.height, viewport.scrollTop, viewport.width])
 
   return (
     <div className="h-full flex flex-col">
@@ -64,54 +136,86 @@ export function MediaPane({
         />
       </header>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <div
+        ref={viewportRef}
+        className="flex-1 min-h-0 overflow-y-auto"
+        onScroll={updateViewport}
+      >
         {items.length === 0 ? (
           <DropZone onFiles={handleFiles} onPick={() => fileRef.current?.click()} />
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 p-6 pt-2">
-            {items.map((item) => (
-              <MediaTile
-                key={item.id}
-                item={item}
-                onDelete={() => onDelete(item.id)}
-                onPreview={() => onPreview(item)}
-                onProject={() => onProject(item)}
-              />
-            ))}
+          <div className="p-6 pt-2">
+            <div className="relative" style={{ height: virtualGrid.totalHeight }}>
+              <div
+                className="absolute inset-x-0 top-0 grid gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${virtualGrid.columnCount}, minmax(0, 1fr))`,
+                  transform: `translateY(${virtualGrid.offsetTop}px)`,
+                }}
+              >
+                {virtualGrid.items.map(({ item, index }) => (
+                  <MediaTile
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    onDelete={onDelete}
+                    onPreview={onPreview}
+                    onProject={onProject}
+                    onPrepare={onPrepare}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
-      </ScrollArea>
+      </div>
     </div>
   )
 }
 
-function MediaTile({
+const MediaTile = memo(function MediaTile({
   item,
+  index,
   onDelete,
   onPreview,
   onProject,
+  onPrepare,
 }: {
   item: MediaItem
-  onDelete: () => void
-  onPreview: () => void
-  onProject: () => void
+  index: number
+  onDelete: (id: string) => void
+  onPreview: (item: MediaItem) => void
+  onProject: (item: MediaItem) => void
+  onPrepare: (item: MediaItem) => void
 }) {
   const [url, setUrl] = useState<string | null>(null)
+
   useEffect(() => {
     let cancelled = false
-    resolveImageUrl(item.imageId ?? item.dataUrl).then((u) => {
+    resolveImageUrl(item.thumbnailId ?? item.imageId ?? item.dataUrl).then((u) => {
       if (!cancelled) setUrl(u)
     })
     return () => {
       cancelled = true
     }
-  }, [item.imageId, item.dataUrl])
+  }, [item.dataUrl, item.imageId, item.thumbnailId])
+
+  const handleDelete = useCallback(() => onDelete(item.id), [item.id, onDelete])
+  const handlePreview = useCallback(() => onPreview(item), [item, onPreview])
+  const handleProject = useCallback(() => onProject(item), [item, onProject])
+  const handlePrepare = useCallback(() => onPrepare(item), [item, onPrepare])
 
   return (
-    <div className="group relative aspect-video rounded-md overflow-hidden border border-border bg-card">
+    <div
+      className="group relative aspect-video rounded-md overflow-hidden border border-border bg-card"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "180px 101px" }}
+    >
       <button
-        onClick={onPreview}
-        onDoubleClick={onProject}
+        onClick={handlePreview}
+        onDoubleClick={handleProject}
+        onFocus={handlePrepare}
+        onMouseEnter={handlePrepare}
+        onPointerDown={handlePrepare}
         className="absolute inset-0"
         aria-label={`Preview ${item.name}`}
       >
@@ -119,6 +223,9 @@ function MediaTile({
           <img
             src={url}
             alt={item.name}
+            loading="lazy"
+            decoding="async"
+            fetchPriority={index < 24 ? "high" : "auto"}
             className="absolute inset-0 size-full object-cover transition-transform group-hover:scale-[1.02]"
           />
         ) : (
@@ -139,7 +246,9 @@ function MediaTile({
               size="sm"
               variant="secondary"
               className="h-7 w-7 p-0"
-              onClick={onPreview}
+              onClick={handlePreview}
+              onFocus={handlePrepare}
+              onMouseEnter={handlePrepare}
             >
               <Eye className="size-3.5" />
             </Button>
@@ -152,7 +261,9 @@ function MediaTile({
               size="sm"
               variant="secondary"
               className="h-7 w-7 p-0"
-              onClick={onProject}
+              onClick={handleProject}
+              onFocus={handlePrepare}
+              onMouseEnter={handlePrepare}
             >
               <Radio className="size-3.5" />
             </Button>
@@ -165,7 +276,7 @@ function MediaTile({
               size="sm"
               variant="secondary"
               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-              onClick={onDelete}
+              onClick={handleDelete}
             >
               <Trash2 className="size-3.5" />
             </Button>
@@ -175,7 +286,7 @@ function MediaTile({
       </div>
     </div>
   )
-}
+})
 
 function DropZone({
   onFiles,

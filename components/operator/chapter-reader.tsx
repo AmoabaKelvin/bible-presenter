@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useChapterReaderSelection } from "@/hooks/use-chapter-reader-selection"
 import type { BibleBook, BibleRef } from "@/lib/bible-data"
 
 export interface ChapterVerse {
@@ -46,72 +46,20 @@ export function ChapterReader({
   onDoubleClickVerse,
   onQueueVerse,
 }: ChapterReaderProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const listRef = useRef<HTMLUListElement>(null)
-  // A direct click selects a verse that's already on screen under the cursor,
-  // so it must NOT scroll (it would yank the target out from under a quick
-  // double-click). Set on click to suppress the next auto-scroll; indirect
-  // selection (keyboard, palette, jump, restore) leaves it false and centers.
-  const skipNextScrollRef = useRef(false)
-  // Position + height of the gliding selection highlight, in px relative to the
-  // verse list. Null when nothing is selected.
-  const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null)
-
-  // Reset scroll position when chapter changes
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const sa = el.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null
-    if (sa) sa.scrollTop = 0
-  }, [book?.name, chapter])
-
-  // Center the active verse when the selection changes from an INDIRECT source
-  // (keyboard stepping, Cmd+K, jump-to-passage, restore). Direct clicks set the
-  // skip flag, so they never scroll — the clicked verse is already in view.
-  useEffect(() => {
-    const skip = skipNextScrollRef.current
-    skipNextScrollRef.current = false
-    if (skip) return
-    const list = listRef.current
-    if (!list) return
-    const target = selectedVerse ?? rangeStart
-    if (target == null) return
-    const li = list.querySelector<HTMLLIElement>(`[data-verse-number="${target}"]`)
-    if (!li) return
-    li.scrollIntoView({ block: "center", behavior: "smooth" })
-  }, [selectedVerse, rangeStart, verses])
-
-  // Measure the selection span (single verse or a range) so the highlight can
-  // glide/resize to it via a CSS transition.
-  const measureHighlight = useCallback(() => {
-    const list = listRef.current
-    if (!list || verses.length === 0) return setHighlight(null)
-    const start = rangeStart ?? selectedVerse
-    const end = rangeEnd ?? start
-    if (start == null || end == null) return setHighlight(null)
-    const startLi = list.querySelector<HTMLLIElement>(`[data-verse-number="${start}"]`)
-    const endLi = list.querySelector<HTMLLIElement>(`[data-verse-number="${end}"]`)
-    if (!startLi || !endLi) return setHighlight(null)
-    const top = startLi.offsetTop
-    setHighlight({ top, height: endLi.offsetTop + endLi.offsetHeight - top })
-  }, [selectedVerse, rangeStart, rangeEnd, verses])
-
-  useLayoutEffect(() => {
-    measureHighlight()
-  }, [measureHighlight])
-
-  // Re-measure when the list resizes (panel drag, font load, window resize).
-  useEffect(() => {
-    const list = listRef.current
-    if (!list) return
-    const ro = new ResizeObserver(() => measureHighlight())
-    ro.observe(list)
-    window.addEventListener("resize", measureHighlight)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener("resize", measureHighlight)
-    }
-  }, [measureHighlight])
+  const {
+    scrollRef,
+    listRef,
+    highlight,
+    suppressNextAutoScroll,
+    allowNextAutoScroll,
+  } = useChapterReaderSelection({
+    bookName: book?.name,
+    chapter,
+    verseCount: verses.length,
+    selectedVerse,
+    rangeStart,
+    rangeEnd,
+  })
 
   if (!book || !chapter) return null
 
@@ -169,7 +117,7 @@ export function ChapterReader({
                 key={v.number}
                 data-verse-number={v.number}
                 onClick={(e) => {
-                  skipNextScrollRef.current = true
+                  suppressNextAutoScroll()
                   onSelectVerse(v.number, e.shiftKey)
                 }}
                 onDoubleClick={(e) => {
@@ -177,7 +125,7 @@ export function ChapterReader({
                   // visible if it was clipped at an edge, but never recenter it.
                   e.currentTarget.scrollIntoView({ block: "nearest", behavior: "smooth" })
                   onDoubleClickVerse(v.number)
-                  skipNextScrollRef.current = false
+                  allowNextAutoScroll()
                 }}
                 className={`group relative flex gap-5 py-3 pr-12 pl-4 -mx-4 rounded-md cursor-pointer transition-colors ${
                   active ? "" : "hover:bg-accent/70"
