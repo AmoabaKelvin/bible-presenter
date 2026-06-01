@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { readLegacyJson, readLegacyString, readPersisted, writePersisted } from "@/lib/persistence"
 
 export function usePersistedState<T>(key: string, initialValue: T) {
   const [loaded, setLoaded] = useState(false)
@@ -8,10 +9,16 @@ export function usePersistedState<T>(key: string, initialValue: T) {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(key)
-      if (stored !== null) {
-        setValue((typeof initialValue === "string" ? stored : JSON.parse(stored)) as T)
-      }
+      const stored = readPersisted<T>(key, {
+        legacy: {
+          keys: [key],
+          read: () =>
+            typeof initialValue === "string"
+              ? (readLegacyString(key) as T | null)
+              : readLegacyJson<T>(key),
+        },
+      })
+      if (stored !== null) setValue(stored)
     } catch {
       // ignore corrupt local state
     }
@@ -20,7 +27,7 @@ export function usePersistedState<T>(key: string, initialValue: T) {
 
   useEffect(() => {
     if (!loaded) return
-    localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value))
+    writePersisted(key, value)
   }, [key, loaded, value])
 
   return [value, setValue] as const

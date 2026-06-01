@@ -9,6 +9,7 @@ import {
   storeImage,
   storeImageThumbnail,
 } from "@/lib/image-store"
+import { readLegacyJson, readPersisted, writePersisted } from "@/lib/persistence"
 
 const MEDIA_KEY = "biblePresenterMedia"
 
@@ -80,9 +81,11 @@ export function useMediaLibrary() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(MEDIA_KEY)
+      const stored = readPersisted<MediaItem[]>("media", {
+        legacy: { keys: [MEDIA_KEY], read: () => readLegacyJson<MediaItem[]>(MEDIA_KEY) },
+      })
       if (stored) {
-        const parsed = JSON.parse(stored) as MediaItem[]
+        const parsed = stored
         skipNextPersistRef.current = true
         setMedia(parsed)
         void migrateMediaItems(parsed)
@@ -99,7 +102,7 @@ export function useMediaLibrary() {
       skipNextPersistRef.current = false
       return
     }
-    localStorage.setItem(MEDIA_KEY, JSON.stringify(media))
+    writePersisted("media", media)
   }, [media, loaded])
 
   const handleMediaUpload = useCallback(async (file: File) => {

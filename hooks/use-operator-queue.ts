@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react"
 import type { SelectedVerse } from "@/components/slide-stage"
+import { readLegacyJson, readLegacyString, readPersisted, writePersisted } from "@/lib/persistence"
 
 const QUEUE_KEY = "biblePresenterQueue"
 const QUEUE_CURSOR_KEY = "biblePresenterQueueCursor"
@@ -38,10 +39,23 @@ export function useOperatorQueue({
 
   useEffect(() => {
     try {
-      const q = localStorage.getItem(QUEUE_KEY)
-      if (q) setQueue(JSON.parse(q))
-      const qc = localStorage.getItem(QUEUE_CURSOR_KEY)
-      if (qc !== null) setQueueCursor(parseInt(qc, 10))
+      const q = readPersisted<SelectedVerse[]>("queue", {
+        legacy: { keys: [QUEUE_KEY], read: () => readLegacyJson<SelectedVerse[]>(QUEUE_KEY) },
+      })
+      if (q) setQueue(q)
+
+      const qc = readPersisted<number>("queueCursor", {
+        legacy: {
+          keys: [QUEUE_CURSOR_KEY],
+          read: () => {
+            const raw = readLegacyString(QUEUE_CURSOR_KEY)
+            if (raw === null) return null
+            const parsed = parseInt(raw, 10)
+            return Number.isFinite(parsed) ? parsed : null
+          },
+        },
+      })
+      if (qc !== null) setQueueCursor(qc)
     } catch {
       // ignore corrupt local state
     }
@@ -49,11 +63,11 @@ export function useOperatorQueue({
   }, [])
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(QUEUE_KEY, JSON.stringify(queue))
+    if (loaded) writePersisted("queue", queue)
   }, [queue, loaded])
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(QUEUE_CURSOR_KEY, String(queueCursor))
+    if (loaded) writePersisted("queueCursor", queueCursor)
   }, [queueCursor, loaded])
 
   const addToQueue = useCallback((verses: SelectedVerse[]) => {

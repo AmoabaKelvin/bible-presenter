@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import type { FontSize } from "@/components/slide-stage"
 import { LeftRail } from "@/components/operator/left-rail"
 import { CommandPalette } from "@/components/operator/command-palette"
@@ -22,8 +22,8 @@ import { usePersistedState } from "@/hooks/use-persisted-state"
 const VERSION_KEY = "bibleVersion"
 
 export default function OperatorPage() {
-  const [mode, setMode] = useState<Mode>("bible")
-  const [fontSize, setFontSize] = useState<FontSize>("extra-large")
+  const [mode, setMode] = usePersistedState<Mode>("workspace:mode", "bible")
+  const [fontSize, setFontSize] = usePersistedState<FontSize>("workspace:fontSize", "extra-large")
   const [version, setVersion] = usePersistedState(VERSION_KEY, "KJV")
 
   const previewContentRef = useRef<HTMLDivElement>(null)

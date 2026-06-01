@@ -3,8 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { SavedNote } from "@/components/operator/types"
+import { readLegacyJson, readPersisted, writePersisted } from "@/lib/persistence"
 
 const NOTES_KEY = "biblePresenterSavedNotes"
+
+type NotesWorkspace = {
+  activeNoteId: string | null
+  draftTitle: string
+  draftBody: string
+}
 
 type UseOperatorNotesResult = {
   noteTitle: string
@@ -30,8 +37,17 @@ export function useOperatorNotes(): UseOperatorNotesResult {
 
   useEffect(() => {
     try {
-      const sn = localStorage.getItem(NOTES_KEY)
-      if (sn) setSavedNotes(JSON.parse(sn))
+      const sn = readPersisted<SavedNote[]>("notes", {
+        legacy: { keys: [NOTES_KEY], read: () => readLegacyJson<SavedNote[]>(NOTES_KEY) },
+      })
+      if (sn) setSavedNotes(sn)
+      const workspace = readPersisted<NotesWorkspace>("workspace:notes")
+      if (workspace) {
+        activeNoteIdRef.current = workspace.activeNoteId
+        setActiveNoteId(workspace.activeNoteId)
+        setNoteTitle(workspace.draftTitle)
+        setNoteText(workspace.draftBody)
+      }
     } catch {
       // ignore corrupt local state
     }
@@ -40,8 +56,20 @@ export function useOperatorNotes(): UseOperatorNotesResult {
 
   useEffect(() => {
     savedNotesRef.current = savedNotes
-    if (loaded) localStorage.setItem(NOTES_KEY, JSON.stringify(savedNotes))
+    if (loaded) writePersisted("notes", savedNotes)
   }, [savedNotes, loaded])
+
+  useEffect(() => {
+    if (!loaded) return
+    const handle = setTimeout(() => {
+      writePersisted<NotesWorkspace>("workspace:notes", {
+        activeNoteId,
+        draftTitle: noteTitle,
+        draftBody: noteText,
+      })
+    }, 400)
+    return () => clearTimeout(handle)
+  }, [activeNoteId, loaded, noteText, noteTitle])
 
   const composeNoteVerse = useCallback((): SelectedVerse | null => {
     if (!noteTitle.trim() && !noteText.trim()) return null

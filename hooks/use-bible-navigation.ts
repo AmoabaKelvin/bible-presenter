@@ -4,10 +4,19 @@ import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } 
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
 import type { BibleBook } from "@/lib/bible-data"
-import { getNextChapterRef, getPrevChapterRef } from "@/lib/bible-data"
+import { allBooks, getNextChapterRef, getPrevChapterRef } from "@/lib/bible-data"
+import { readPersisted, writePersisted } from "@/lib/persistence"
 import { buildScriptureSlides } from "@/lib/scripture-slides"
 
 type PendingProjectVerse = { book: BibleBook; chapter: number; verse: number } | null
+
+type BibleWorkspace = {
+  bookName?: string
+  chapter?: number
+  selectedVerse?: number | null
+  rangeStartVerse?: number | null
+  rangeEndVerse?: number | null
+}
 
 type UseBibleNavigationOptions = {
   version: string
@@ -27,6 +36,44 @@ export function useBibleNavigation({
   const [rangeEndVerse, setRangeEndVerse] = useState<number | null>(null)
   const [pendingVerseSelection, setPendingVerseSelection] = useState<number | null>(null)
   const [pendingProjectVerse, setPendingProjectVerse] = useState<PendingProjectVerse>(null)
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false)
+
+  useEffect(() => {
+    try {
+      const stored = readPersisted<BibleWorkspace>("workspace:bible")
+      const book = stored?.bookName
+        ? allBooks.find((candidate) => candidate.name === stored.bookName)
+        : null
+      if (book && stored?.chapter) {
+        setSelectedBook(book)
+        setSelectedChapter(stored.chapter)
+        setSelectedVerse(stored.selectedVerse ?? null)
+        setRangeStartVerse(stored.rangeStartVerse ?? stored.selectedVerse ?? null)
+        setRangeEndVerse(stored.rangeEndVerse ?? null)
+      }
+    } catch {
+      // ignore corrupt workspace state
+    }
+    setWorkspaceLoaded(true)
+  }, [])
+
+  useEffect(() => {
+    if (!workspaceLoaded) return
+    writePersisted<BibleWorkspace>("workspace:bible", {
+      bookName: selectedBook?.name,
+      chapter: selectedChapter ?? undefined,
+      selectedVerse,
+      rangeStartVerse,
+      rangeEndVerse,
+    })
+  }, [
+    rangeEndVerse,
+    rangeStartVerse,
+    selectedBook,
+    selectedChapter,
+    selectedVerse,
+    workspaceLoaded,
+  ])
 
   const buildSelectedVerses = useCallback(
     (start: number, end: number): SelectedVerse[] => {

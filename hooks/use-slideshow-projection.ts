@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import type { VerseData } from "@/components/operator/types"
 import { resolveBackgroundMedia, resolveImageUrl, type BackgroundMediaKind } from "@/lib/image-store"
+import { readLegacyString, readPersisted } from "@/lib/persistence"
 
 const DEFAULT_DATA: VerseData = {
   verses: [],
@@ -10,6 +11,12 @@ const DEFAULT_DATA: VerseData = {
   darkMode: true,
   version: "KJV",
   backgroundColor: "#000000",
+}
+
+type BackgroundSettings = {
+  color: string
+  imageId: string | null
+  kind: BackgroundMediaKind | null
 }
 
 function updateFavicon(verseRef?: string) {
@@ -49,12 +56,29 @@ function firstSlideTitle(data: VerseData) {
 }
 
 function applyStoredOverrides(parsed: VerseData) {
-  const storedBgColor = localStorage.getItem("biblePresenterBackgroundColor")
-  const storedBgImage = localStorage.getItem("biblePresenterBackgroundImage")
+  const background = readPersisted<BackgroundSettings>("background", {
+    legacy: {
+      keys: [
+        "biblePresenterBackgroundColor",
+        "biblePresenterBackgroundImage",
+        "biblePresenterBackgroundKind",
+      ],
+      read: () => {
+        const color = readLegacyString("biblePresenterBackgroundColor") ?? "#000000"
+        const imageId = readLegacyString("biblePresenterBackgroundImage")
+        const kind = readLegacyString("biblePresenterBackgroundKind")
+        return {
+          color,
+          imageId,
+          kind: kind === "image" || kind === "video" ? kind : null,
+        }
+      },
+    },
+  })
   return {
     ...parsed,
-    backgroundColor: storedBgColor || parsed.backgroundColor,
-    backgroundImage: storedBgImage || undefined,
+    backgroundColor: background?.color || parsed.backgroundColor,
+    backgroundImage: background?.imageId || undefined,
   }
 }
 

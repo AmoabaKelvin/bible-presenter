@@ -7,10 +7,22 @@ import {
   storeImage,
   type BackgroundMediaKind,
 } from "@/lib/image-store"
+import {
+  readLegacyString,
+  readPersisted,
+  removePersisted,
+  writePersisted,
+} from "@/lib/persistence"
 
 const BG_COLOR_KEY = "biblePresenterBackgroundColor"
 const BG_IMAGE_KEY = "biblePresenterBackgroundImage"
 const BG_KIND_KEY = "biblePresenterBackgroundKind"
+
+type BackgroundSettings = {
+  color: string
+  imageId: string | null
+  kind: BackgroundMediaKind | null
+}
 
 export function useOperatorBackground() {
   const [themeLoaded, setThemeLoaded] = useState(false)
@@ -21,9 +33,23 @@ export function useOperatorBackground() {
 
   useEffect(() => {
     try {
-      const bg = localStorage.getItem(BG_COLOR_KEY)
-      if (bg) setBackgroundColor(bg)
-      const bgImg = localStorage.getItem(BG_IMAGE_KEY)
+      const settings = readPersisted<BackgroundSettings>("background", {
+        legacy: {
+          keys: [BG_COLOR_KEY, BG_IMAGE_KEY, BG_KIND_KEY],
+          read: () => {
+            const color = readLegacyString(BG_COLOR_KEY) ?? "#000000"
+            const imageId = readLegacyString(BG_IMAGE_KEY)
+            const kind = readLegacyString(BG_KIND_KEY)
+            return {
+              color,
+              imageId,
+              kind: kind === "image" || kind === "video" ? kind : null,
+            }
+          },
+        },
+      })
+      if (settings?.color) setBackgroundColor(settings.color)
+      const bgImg = settings?.imageId ?? null
       if (bgImg) {
         setBackgroundImageId(bgImg)
         resolveBackgroundMedia(bgImg).then((media) => {
@@ -39,23 +65,17 @@ export function useOperatorBackground() {
   }, [])
 
   useEffect(() => {
-    if (themeLoaded) localStorage.setItem(BG_COLOR_KEY, backgroundColor)
-  }, [backgroundColor, themeLoaded])
-
-  useEffect(() => {
     if (!themeLoaded) return
     try {
-      if (backgroundImageId) {
-        localStorage.setItem(BG_IMAGE_KEY, backgroundImageId)
-        localStorage.setItem(BG_KIND_KEY, backgroundKind ?? "image")
-      } else {
-        localStorage.removeItem(BG_IMAGE_KEY)
-        localStorage.removeItem(BG_KIND_KEY)
-      }
+      writePersisted<BackgroundSettings>("background", {
+        color: backgroundColor,
+        imageId: backgroundImageId,
+        kind: backgroundKind,
+      })
     } catch (err) {
       console.error("FlowCast: failed to persist background", err)
     }
-  }, [backgroundImageId, backgroundKind, themeLoaded])
+  }, [backgroundColor, backgroundImageId, backgroundKind, themeLoaded])
 
   const handleBackgroundUpload = useCallback(async (file: File) => {
     try {
@@ -78,6 +98,7 @@ export function useOperatorBackground() {
   const resetBackground = useCallback(() => {
     setBackgroundColor("#000000")
     clearBackgroundImage()
+    removePersisted("background")
   }, [clearBackgroundImage])
 
   return {

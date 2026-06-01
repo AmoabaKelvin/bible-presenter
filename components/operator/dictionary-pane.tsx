@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { Search, Loader2, BookA, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { SelectedVerse } from "@/components/slide-stage"
 import { useDictionaryLookup } from "@/hooks/use-dictionary-lookup"
+import { usePersistedState } from "@/hooks/use-persisted-state"
 import { definitionToSlide } from "@/lib/dictionary"
 import { DefinitionCard } from "./definition-card"
 
@@ -26,7 +27,7 @@ export function DictionaryPane({
   externalQuery,
   externalQueryNonce,
 }: DictionaryPaneProps) {
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = usePersistedState("workspace:dictionaryQuery", "")
   const { entries, suggestions, loading } = useDictionaryLookup(query, true, {
     delayMs: 220,
     suggestionsLimit: 8,
@@ -36,7 +37,7 @@ export function DictionaryPane({
   // defining the same word twice re-runs the search).
   useEffect(() => {
     if (externalQueryNonce && externalQuery) setQuery(externalQuery)
-  }, [externalQuery, externalQueryNonce])
+  }, [externalQuery, externalQueryNonce, setQuery])
 
   const queryReady = query.trim().length >= 2
   const showEmpty = !loading && queryReady && entries.length === 0

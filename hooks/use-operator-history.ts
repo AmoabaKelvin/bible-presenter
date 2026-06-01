@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react"
 import type { SelectedVerse, SlideKind } from "@/components/slide-stage"
 import type { HistoryItem } from "@/components/operator/types"
+import { readLegacyJson, readPersisted, removePersisted, writePersisted } from "@/lib/persistence"
 
 const HISTORY_KEY = "biblePresenterHistory"
 
@@ -29,8 +30,10 @@ export function useOperatorHistory({
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(HISTORY_KEY)
-      if (stored) setHistory(JSON.parse(stored))
+      const stored = readPersisted<HistoryItem[]>("history", {
+        legacy: { keys: [HISTORY_KEY], read: () => readLegacyJson<HistoryItem[]>(HISTORY_KEY) },
+      })
+      if (stored) setHistory(stored)
     } catch {
       // ignore corrupt local state
     }
@@ -64,7 +67,7 @@ export function useOperatorHistory({
               ),
           ),
         ].slice(0, 30)
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+        writePersisted("history", next)
         return next
       })
     },
@@ -73,7 +76,7 @@ export function useOperatorHistory({
 
   const clearHistory = useCallback(() => {
     setHistory([])
-    localStorage.removeItem(HISTORY_KEY)
+    removePersisted("history")
   }, [])
 
   const projectFromHistory = useCallback(
