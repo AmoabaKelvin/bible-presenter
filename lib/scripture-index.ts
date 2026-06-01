@@ -46,7 +46,9 @@ export function queryIndex(
   query: string,
   opts: { limit: number; offset: number },
 ): ScriptureSearchResponse {
-  const all = mini.search(query, { prefix: true, fuzzy: 0.1 })
+  // Require every term to match (intersection), so "eye seen" returns only
+  // verses containing both words rather than the union of either.
+  const all = mini.search(query, { prefix: true, fuzzy: 0.1, combineWith: "AND" })
   const page = all.slice(opts.offset, opts.offset + opts.limit)
   return {
     query,
