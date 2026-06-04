@@ -10,6 +10,7 @@ import {
   type FontSize,
   type SelectedVerse,
 } from "@/components/slide-stage"
+import type { PresentationSettings } from "@/lib/presentation-settings"
 
 const HIGHLIGHTS = [
   { value: "rgba(250, 204, 21, 0.55)", swatch: "#facc15", label: "Yellow" },
@@ -23,6 +24,7 @@ interface SlidePreviewPanelProps {
   verses: SelectedVerse[]
   mediaUrl: string | null
   fontSize: FontSize
+  presentation: PresentationSettings
   version: string
   backgroundColor: string
   backgroundImage: string | null
@@ -39,6 +41,7 @@ export function SlidePreviewPanel({
   verses,
   mediaUrl,
   fontSize,
+  presentation,
   version,
   backgroundColor,
   backgroundImage,
@@ -118,6 +121,7 @@ export function SlidePreviewPanel({
               backgroundImage={backgroundImage}
               defaultVersion={version}
               innerRef={contentRef}
+              presentation={presentation}
             />
           )}
         </SlideStage>

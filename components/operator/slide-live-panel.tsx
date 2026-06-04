@@ -8,11 +8,13 @@ import {
   type FontSize,
   type SelectedVerse,
 } from "@/components/slide-stage"
+import type { PresentationSettings } from "@/lib/presentation-settings"
 
 interface SlideLivePanelProps {
   verses: SelectedVerse[]
   mediaUrl: string | null
   fontSize: FontSize
+  presentation: PresentationSettings
   version: string
   backgroundColor: string
   backgroundImage: string | null
@@ -25,6 +27,7 @@ export function SlideLivePanel({
   verses,
   mediaUrl,
   fontSize,
+  presentation,
   version,
   backgroundColor,
   backgroundImage,
@@ -89,6 +92,7 @@ export function SlideLivePanel({
               backgroundColor={backgroundColor}
               backgroundImage={backgroundImage}
               defaultVersion={version}
+              presentation={presentation}
             />
           )}
         </SlideStage>

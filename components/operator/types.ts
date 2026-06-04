@@ -1,4 +1,5 @@
 import type { SelectedVerse, FontSize, SlideKind } from "@/components/slide-stage"
+import type { PresentationSettings } from "@/lib/presentation-settings"
 
 export type Mode = "bible" | "notes" | "media" | "dictionary"
 
@@ -37,4 +38,8 @@ export interface VerseData {
   backgroundImage?: string
   // Image references are IndexedDB ids; each tab resolves them locally.
   mediaId?: string
+  // Slide style; the projector reads this from durable persistence (see
+  // `use-slideshow-projection`) rather than the projection payload, so style
+  // tweaks reflow a live slide without re-projecting.
+  presentation?: PresentationSettings
 }

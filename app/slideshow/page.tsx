@@ -7,10 +7,12 @@ import { useFullscreen } from "@/hooks/use-fullscreen"
 import { useWakeLock } from "@/hooks/use-wake-lock"
 import { useSlideshowProjection } from "@/hooks/use-slideshow-projection"
 import { useSlideshowMusicPlayer } from "@/hooks/use-slideshow-music-player"
+import { useGoogleFont } from "@/hooks/use-google-font"
 
 export default function SlideshowPage() {
   const { data, bgImageUrl, bgKind, mediaImageUrl } = useSlideshowProjection()
   const { needsAudioGesture, enableAudio } = useSlideshowMusicPlayer()
+  useGoogleFont(data.presentation?.fontFamily)
 
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
   // Keep the projector awake the whole time the output is open.
@@ -63,6 +65,7 @@ export default function SlideshowPage() {
             backgroundColor={backgroundColor}
             backgroundImage={backgroundImage}
             defaultVersion={data.version}
+            presentation={data.presentation}
           />
         )}
       </SlideStage>

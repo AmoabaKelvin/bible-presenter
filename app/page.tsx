@@ -18,6 +18,8 @@ import { useOperatorNotes } from "@/hooks/use-operator-notes"
 import { useOperatorProjection } from "@/hooks/use-operator-projection"
 import { useOperatorSlideActions } from "@/hooks/use-operator-slide-actions"
 import { usePersistedState } from "@/hooks/use-persisted-state"
+import { useGoogleFont } from "@/hooks/use-google-font"
+import { DEFAULT_PRESENTATION, type PresentationSettings } from "@/lib/presentation-settings"
 
 const VERSION_KEY = "bibleVersion"
 
@@ -25,6 +27,11 @@ export default function OperatorPage() {
   const [mode, setMode] = usePersistedState<Mode>("workspace:mode", "bible")
   const [fontSize, setFontSize] = usePersistedState<FontSize>("workspace:fontSize", "extra-large")
   const [version, setVersion] = usePersistedState(VERSION_KEY, "KJV")
+  const [presentation, setPresentation] = usePersistedState<PresentationSettings>(
+    "presentation",
+    DEFAULT_PRESENTATION,
+  )
+  useGoogleFont(presentation.fontFamily)
 
   const previewContentRef = useRef<HTMLDivElement>(null)
   const {
@@ -280,6 +287,8 @@ export default function OperatorPage() {
         liveMediaUrl={liveMedia?.url ?? null}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
+        presentation={presentation}
+        onPresentationChange={setPresentation}
         version={version}
         backgroundColor={backgroundColor}
         onBackgroundColorChange={setBackgroundColor}

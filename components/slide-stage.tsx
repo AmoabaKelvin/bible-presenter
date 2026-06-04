@@ -5,6 +5,17 @@ import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import { useSlideScale } from "@/hooks/use-slide-scale"
 import { useSlideTextFit } from "@/hooks/use-slide-text-fit"
+import {
+  ALIGNMENT_CSS,
+  MARGIN_X_BOUNDS,
+  MARGIN_Y_BOUNDS,
+  REFERENCE_WEIGHT_VALUE,
+  SCRIPTURE_WEIGHT_VALUE,
+  clampMargin,
+  fontFamilyCss,
+  mergePresentation,
+  type PresentationSettings,
+} from "@/lib/presentation-settings"
 
 export const SLIDE_WIDTH = 1920
 export const SLIDE_HEIGHT = 1080
@@ -143,11 +154,8 @@ interface SlideContentProps {
   backgroundImage?: string | null
   defaultVersion?: string
   innerRef?: Ref<HTMLDivElement>
+  presentation?: Partial<PresentationSettings> | null
 }
-
-const PADDING = 120
-const CONTENT_MAX_WIDTH = 1600
-const AVAILABLE_HEIGHT = SLIDE_HEIGHT - PADDING * 2
 
 export function SlideContent({
   verses,
@@ -156,12 +164,28 @@ export function SlideContent({
   backgroundImage,
   defaultVersion = "KJV",
   innerRef,
+  presentation,
 }: SlideContentProps) {
   const textColor = backgroundImage ? "#ffffff" : getTextColorHex(backgroundColor)
   const referenceColor = backgroundImage
     ? "#d1d5db"
     : getReferenceColorHex(backgroundColor)
   const proseInvert = textColor === "#ffffff"
+
+  const style = mergePresentation(presentation)
+  const align = ALIGNMENT_CSS[style.alignment]
+  const fontFamily = fontFamilyCss(style.fontFamily)
+  const textTransform = style.textCase === "uppercase" ? "uppercase" : undefined
+  const scriptureWeight = SCRIPTURE_WEIGHT_VALUE[style.scriptureWeight]
+  const referenceWeight = REFERENCE_WEIGHT_VALUE[style.referenceWeight]
+
+  // Margins define the safe area the auto-fit targets: vertical sets the height
+  // the text fills, horizontal sets the line length.
+  const marginX = clampMargin(style.marginX, MARGIN_X_BOUNDS)
+  const marginY = clampMargin(style.marginY, MARGIN_Y_BOUNDS)
+  const availableHeight = SLIDE_HEIGHT - marginY * 2
+  const contentMaxWidth = SLIDE_WIDTH - marginX * 2
+
   const {
     measuring,
     setRefs,
@@ -174,16 +198,18 @@ export function SlideContent({
   } = useSlideTextFit({
     verses,
     fontSize,
-    availableHeight: AVAILABLE_HEIGHT,
+    availableHeight,
+    availableWidth: contentMaxWidth,
     innerRef,
   })
 
   return (
     <div
-      className="absolute inset-0 flex items-center justify-center text-center"
+      className="absolute inset-0 flex items-center"
       style={{
-        padding: PADDING,
+        padding: `${marginY}px ${marginX}px`,
         color: textColor,
+        justifyContent: align.justifyContent,
         visibility: measuring ? "hidden" : "visible",
       }}
     >
@@ -191,14 +217,21 @@ export function SlideContent({
         ref={setRefs}
         style={{
           width: "100%",
-          maxWidth: CONTENT_MAX_WIDTH,
+          maxWidth: contentMaxWidth,
           display: "flex",
           flexDirection: "column",
+          alignItems:
+            align.justifyContent === "center"
+              ? "center"
+              : align.justifyContent === "flex-end"
+                ? "flex-end"
+                : "flex-start",
+          textAlign: align.textAlign,
           gap,
         }}
       >
         {verses.map((v) => (
-          <div key={v.id} data-verse-id={v.id}>
+          <div key={v.id} data-verse-id={v.id} style={{ width: "100%" }}>
             {isNote(v) ? (
               <>
                 {v.reference && (
@@ -206,6 +239,8 @@ export function SlideContent({
                     style={{
                       fontSize: noteTitleFs,
                       fontWeight: 700,
+                      fontFamily,
+                      textTransform,
                       marginBottom: noteTitleMb,
                       lineHeight: 1.2,
                     }}
@@ -216,7 +251,12 @@ export function SlideContent({
                 <div
                   data-verse-text
                   className={`leading-relaxed font-serif prose max-w-none prose-ol:list-inside prose-ul:list-inside prose-ol:pl-0 prose-ul:pl-0 ${proseInvert ? "prose-invert" : ""}`}
-                  style={{ fontSize: verseFs }}
+                  style={{
+                    fontSize: verseFs,
+                    fontFamily,
+                    fontWeight: scriptureWeight,
+                    textTransform,
+                  }}
                 >
                   <ReactMarkdown rehypePlugins={[rehypeRaw]}>{v.text}</ReactMarkdown>
                 </div>
@@ -228,15 +268,22 @@ export function SlideContent({
                   className={`leading-relaxed font-serif ${
                     v.reference ? "text-balance" : "whitespace-pre-wrap"
                   }`}
-                  style={{ fontSize: verseFs }}
+                  style={{
+                    fontSize: verseFs,
+                    fontFamily,
+                    fontWeight: scriptureWeight,
+                    textTransform,
+                  }}
                   dangerouslySetInnerHTML={{ __html: v.text }}
                 />
                 {v.reference && (
                   <p
-                    className="font-bold italic"
+                    className="italic"
                     style={{
                       marginTop: refMt,
                       fontSize: refFs,
+                      fontFamily,
+                      fontWeight: referenceWeight,
                       color: referenceColor,
                       lineHeight: 1.3,
                     }}

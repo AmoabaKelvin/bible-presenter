@@ -5,6 +5,8 @@ import { BackgroundPopover } from "./background-popover"
 import { MusicPane } from "./music-pane"
 import { SlideLivePanel } from "./slide-live-panel"
 import { SlidePreviewPanel } from "./slide-preview-panel"
+import { PresentationSettingsDialog } from "./presentation-settings-dialog"
+import type { PresentationSettings } from "@/lib/presentation-settings"
 import type { RefObject } from "react"
 import type { MusicState } from "@/lib/music-protocol"
 import type { SpotifyAuthStatus } from "@/lib/spotify-music"
@@ -17,6 +19,8 @@ interface RightRailProps {
   liveMediaUrl: string | null
   fontSize: FontSize
   onFontSizeChange: (s: FontSize) => void
+  presentation: PresentationSettings
+  onPresentationChange: (s: PresentationSettings) => void
   version: string
   backgroundColor: string
   onBackgroundColorChange: (c: string) => void
@@ -74,6 +78,8 @@ export function RightRail({
   liveMediaUrl,
   fontSize,
   onFontSizeChange,
+  presentation,
+  onPresentationChange,
   version,
   backgroundColor,
   onBackgroundColorChange,
@@ -145,6 +151,14 @@ export function RightRail({
             onClearImage={onClearBackground}
             onReset={onResetBackground}
           />
+          <PresentationSettingsDialog
+            settings={presentation}
+            onChange={onPresentationChange}
+            backgroundColor={bg}
+            backgroundImage={backgroundImage}
+            backgroundKind={backgroundKind}
+            version={version}
+          />
         </div>
       </div>
 
@@ -152,6 +166,7 @@ export function RightRail({
         verses={previewVerses}
         mediaUrl={previewMediaUrl}
         fontSize={fontSize}
+        presentation={presentation}
         version={version}
         backgroundColor={bg}
         backgroundImage={backgroundImage}
@@ -168,6 +183,7 @@ export function RightRail({
         verses={liveVerses}
         mediaUrl={liveMediaUrl}
         fontSize={fontSize}
+        presentation={presentation}
         version={version}
         backgroundColor={bg}
         backgroundImage={backgroundImage}

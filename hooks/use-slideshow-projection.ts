@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import type { VerseData } from "@/components/operator/types"
 import { resolveBackgroundMedia, resolveImageUrl, type BackgroundMediaKind } from "@/lib/image-store"
 import { readLegacyString, readPersisted } from "@/lib/persistence"
+import { mergePresentation, type PresentationSettings } from "@/lib/presentation-settings"
 
 const DEFAULT_DATA: VerseData = {
   verses: [],
@@ -75,10 +76,12 @@ function applyStoredOverrides(parsed: VerseData) {
       },
     },
   })
+  const presentation = readPersisted<PresentationSettings>("presentation")
   return {
     ...parsed,
     backgroundColor: background?.color || parsed.backgroundColor,
     backgroundImage: background?.imageId || undefined,
+    presentation: mergePresentation(presentation),
   }
 }
 
