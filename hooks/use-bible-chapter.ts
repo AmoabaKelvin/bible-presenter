@@ -13,18 +13,39 @@ type UseBibleChapterOptions = {
   selectedChapter: number | null
 }
 
+// Shared empty array so the "no verses for this chapter yet" case keeps a
+// stable reference across renders.
+const EMPTY_VERSES: ChapterVerse[] = []
+
 export function useBibleChapter({
   version,
   selectedBook,
   selectedChapter,
 }: UseBibleChapterOptions) {
-  const [chapterVerses, setChapterVerses] = useState<ChapterVerse[]>([])
+  // Hold the loaded verses together with the chapter they belong to. Verses
+  // are only exposed when they match the current selection, so consumers never
+  // see a previous chapter's text while a new chapter is still loading — that
+  // staleness made projected slides show the right reference with the wrong
+  // verse (e.g. "John 2:5" labeling Joshua 1:5's text).
+  const [loaded, setLoaded] = useState<{
+    book: string
+    chapter: number
+    verses: ChapterVerse[]
+  } | null>(null)
   const [chapterLoading, setChapterLoading] = useState(false)
   const [chapterError, setChapterError] = useState<string | null>(null)
 
+  const chapterVerses: ChapterVerse[] =
+    loaded &&
+    selectedBook &&
+    loaded.book === selectedBook.name &&
+    loaded.chapter === selectedChapter
+      ? loaded.verses
+      : EMPTY_VERSES
+
   useEffect(() => {
     if (!selectedBook || !selectedChapter) {
-      setChapterVerses([])
+      setLoaded(null)
       return
     }
     const verseCount = selectedBook.chapters[selectedChapter - 1]
@@ -36,8 +57,9 @@ export function useBibleChapter({
     ;(async () => {
       try {
         const cached = await getCachedChapter(version, selectedBook.name, selectedChapter)
+        if (controller.signal.aborted) return
         if (cached) {
-          setChapterVerses(cached)
+          setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: cached })
           setChapterLoading(false)
           return
         }
@@ -57,16 +79,17 @@ export function useBibleChapter({
           : data.text
             ? [{ number: 1, text: String(data.text).trim() }]
             : []
+        if (controller.signal.aborted) return
         if (verses.length === 0) {
           setChapterError("This chapter is not available in the selected translation.")
         } else {
           putCachedChapter(version, selectedBook.name, selectedChapter, verses)
         }
-        setChapterVerses(verses)
+        setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses })
       } catch (e) {
         if ((e as Error).name === "AbortError") return
         setChapterError("Couldn't load this chapter. Please check your connection.")
-        setChapterVerses([])
+        setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: [] })
       } finally {
         setChapterLoading(false)
       }
