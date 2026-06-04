@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import { Figtree, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
-const geistSans = Geist({
+const figtree = Figtree({
   variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
@@ -90,7 +90,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} antialiased overflow-hidden`}
+        className={`${figtree.variable} ${geistMono.variable} ${fraunces.variable} antialiased overflow-hidden`}
       >
         <ThemeProvider
           attribute="class"
