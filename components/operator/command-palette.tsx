@@ -46,7 +46,7 @@ export function CommandPalette({
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("scripture")
   const [query, setQuery] = useState("")
   const isDict = paletteMode === "dictionary"
-  const { results, total, loading, error, hasMore, loadMore, activeQuery } =
+  const { results, total, loading, enriching, error, hasMore, loadMore, activeQuery } =
     useScriptureSearch(isDict ? "" : query, version)
   const {
     entries: definitionEntries,
@@ -156,9 +156,10 @@ export function CommandPalette({
                 onClose={close}
               />
             )}
-            {loading && results.length > 0 && (
-              <div className="py-3 grid place-items-center">
-                <Loader2 className="size-4 text-muted-foreground animate-spin" />
+            {!isDict && enriching && results.length > 0 && (
+              <div className="flex items-center justify-center gap-1.5 py-3 text-[11px] text-muted-foreground/70">
+                <Loader2 className="size-3 animate-spin" />
+                finding related verses…
               </div>
             )}
           </CommandList>

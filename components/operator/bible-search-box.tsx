@@ -16,7 +16,7 @@ export function BibleSearchBox({ query, onQueryChange }: BibleSearchBoxProps) {
         <Input
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search the Bible — a word, phrase, or topic"
+          placeholder="Search the Bible — a word, phrase, or what you remember"
           className="h-10 pl-10 text-sm"
           autoFocus
         />

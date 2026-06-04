@@ -22,7 +22,7 @@ export function ScriptureSearchResults({
   onProject,
   onQueue,
 }: ScriptureSearchResultsProps) {
-  const { results, total, loading, error, hasMore, loadMore, activeQuery } =
+  const { results, total, loading, enriching, error, hasMore, loadMore, activeQuery } =
     useScriptureSearch(query, version)
 
   const showInitialSpinner = loading && results.length === 0
@@ -33,8 +33,16 @@ export function ScriptureSearchResults({
         <div className="flex items-baseline justify-between gap-4 mb-3 h-6">
           <span className="eyebrow">Scripture</span>
           {activeQuery && !showInitialSpinner && (
-            <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
-              {total} {total === 1 ? "result" : "results"}
+            <span className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground tabular-nums">
+              {enriching && (
+                <span className="flex items-center gap-1.5 text-muted-foreground/70">
+                  <Loader2 className="size-3 animate-spin" />
+                  finding related verses…
+                </span>
+              )}
+              <span>
+                {total} {total === 1 ? "result" : "results"}
+              </span>
             </span>
           )}
         </div>

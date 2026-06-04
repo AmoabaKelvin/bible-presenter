@@ -19,6 +19,7 @@ import { useOperatorProjection } from "@/hooks/use-operator-projection"
 import { useOperatorSlideActions } from "@/hooks/use-operator-slide-actions"
 import { usePersistedState } from "@/hooks/use-persisted-state"
 import { useGoogleFont } from "@/hooks/use-google-font"
+import { useWarmSemanticIndex } from "@/hooks/use-warm-semantic-index"
 import { DEFAULT_PRESENTATION, type PresentationSettings } from "@/lib/presentation-settings"
 
 const VERSION_KEY = "bibleVersion"
@@ -32,6 +33,7 @@ export default function OperatorPage() {
     DEFAULT_PRESENTATION,
   )
   useGoogleFont(presentation.fontFamily)
+  useWarmSemanticIndex()
 
   const previewContentRef = useRef<HTMLDivElement>(null)
   const {

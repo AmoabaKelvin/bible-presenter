@@ -1,0 +1,1 @@
+{"version":"BSB","model":"Xenova/bge-small-en-v1.5","dim":384,"count":31086,"quant":"int8/127","queryPrefix":"Represent this sentence for searching relevant passages: "}
