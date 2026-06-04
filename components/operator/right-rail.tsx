@@ -114,7 +114,7 @@ export function RightRail({
   const bg = themeLoaded ? backgroundColor : "#0a0a0a"
 
   return (
-    <aside className="w-[500px] shrink-0 h-full border-l border-border bg-card/30 flex flex-col overflow-y-auto">
+    <aside className="w-[500px] shrink-0 h-full border-l border-border bg-card/30 flex flex-col overflow-hidden">
       {/* Slide presentation settings */}
       <div className="h-14 shrink-0 px-4 border-b border-border flex items-center justify-between gap-2">
         <span className="eyebrow">Slide</span>
@@ -177,28 +177,30 @@ export function RightRail({
       />
 
       {/* MUSIC */}
-      <MusicPane
-        state={musicState}
-        url={musicUrl}
-        slideshowOnline={slideshowOnline}
-        youtubeStatus={youtubeStatus}
-        onYouTubeStatusChange={onYouTubeStatusChange}
-        spotifyStatus={spotifyStatus}
-        onSpotifyStatusChange={onSpotifyStatusChange}
-        onOpenOutput={onOpenOutput}
-        onLoadYouTubePlaylist={onMusicLoadYouTubePlaylist}
-        onLoadYouTubeTrack={onMusicLoadYouTubeTrack}
-        onLoadYouTubeVideo={onMusicLoadYouTubeVideo}
-        onLoadSpotify={onMusicLoadSpotify}
-        onPlay={onMusicPlay}
-        onPause={onMusicPause}
-        onNext={onMusicNext}
-        onPrev={onMusicPrev}
-        onPlayAt={onMusicPlayAt}
-        onSeek={onMusicSeek}
-        onVolume={onMusicVolume}
-        onStop={onMusicStop}
-      />
+      <div className="flex-1 min-h-0 overflow-y-auto scroll-thin">
+        <MusicPane
+          state={musicState}
+          url={musicUrl}
+          slideshowOnline={slideshowOnline}
+          youtubeStatus={youtubeStatus}
+          onYouTubeStatusChange={onYouTubeStatusChange}
+          spotifyStatus={spotifyStatus}
+          onSpotifyStatusChange={onSpotifyStatusChange}
+          onOpenOutput={onOpenOutput}
+          onLoadYouTubePlaylist={onMusicLoadYouTubePlaylist}
+          onLoadYouTubeTrack={onMusicLoadYouTubeTrack}
+          onLoadYouTubeVideo={onMusicLoadYouTubeVideo}
+          onLoadSpotify={onMusicLoadSpotify}
+          onPlay={onMusicPlay}
+          onPause={onMusicPause}
+          onNext={onMusicNext}
+          onPrev={onMusicPrev}
+          onPlayAt={onMusicPlayAt}
+          onSeek={onMusicSeek}
+          onVolume={onMusicVolume}
+          onStop={onMusicStop}
+        />
+      </div>
     </aside>
   )
 }
