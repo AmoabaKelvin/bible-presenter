@@ -47,13 +47,11 @@ export function queryIndex(
   opts: { limit: number; offset: number },
 ): ScriptureSearchResponse {
   // Require every term to match (intersection), so "eye seen" returns only
-  // verses containing both words rather than the union of either.
-  //
-  // No fuzzy matching: it matched near-spellings (e.g. "fourth" -> "forth")
-  // that pulled in wrong verses, and when fused with semantic results those
-  // false lexical hits outranked the right verse. Prefix matching is kept so
-  // partial words still match as the operator types.
-  const all = mini.search(query, { prefix: true, combineWith: "AND" })
+  // verses containing both words rather than the union of either. Fuzzy +
+  // prefix keep typo and partial-word tolerance; the hybrid fusion (see
+  // lib/hybrid-search.ts) keeps these looser lexical hits from outranking the
+  // strongest semantic matches.
+  const all = mini.search(query, { prefix: true, fuzzy: 0.1, combineWith: "AND" })
   const page = all.slice(opts.offset, opts.offset + opts.limit)
   return {
     query,
