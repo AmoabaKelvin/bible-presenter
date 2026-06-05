@@ -25,8 +25,8 @@ function relativeTime(ts: number) {
   return `${days}d ago`
 }
 
-function stripMd(value: string) {
-  return value.replace(/[*_#>`~-]/g, "").replace(/<[^>]+>/g, "").trim()
+function stripMd(value: string | undefined | null) {
+  return (value ?? "").replace(/[*_#>`~-]/g, "").replace(/<[^>]+>/g, "").trim()
 }
 
 export function NotesList({
@@ -80,7 +80,8 @@ export function NotesList({
           <ul className="p-1.5 space-y-px">
             {sortedNotes.map((note) => {
               const active = note.id === activeNoteId
-              const preview = stripMd(note.body)
+              const preview = stripMd(note.slides?.[0]?.body)
+              const slideCount = note.slides?.length ?? 0
               return (
                 <li key={note.id}>
                   <button
@@ -124,10 +125,10 @@ export function NotesList({
                       </span>
                     </div>
                     <p className="text-[11.5px] text-muted-foreground line-clamp-1 mt-0.5">
-                      {preview || "No additional text"}
+                      {preview || "Empty deck"}
                     </p>
                     <p className="text-[10px] text-muted-foreground/60 font-mono mt-1">
-                      {relativeTime(note.updatedAt)}
+                      {slideCount} {slideCount === 1 ? "slide" : "slides"} · {relativeTime(note.updatedAt)}
                     </p>
                   </button>
                 </li>

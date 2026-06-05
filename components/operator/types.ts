@@ -21,10 +21,20 @@ export interface MediaItem {
   createdAt: number
 }
 
-export interface SavedNote {
+// One slide within a note. Title is optional (projected as the reference
+// line); body is Markdown authored through the WYSIWYG editor.
+export interface NoteSlide {
   id: string
   title: string
   body: string
+}
+
+// A note is a small deck of slides. `title` names the deck in the sidebar and
+// is not projected.
+export interface SavedNote {
+  id: string
+  title: string
+  slides: NoteSlide[]
   createdAt: number
   updatedAt: number
 }

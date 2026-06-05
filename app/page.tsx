@@ -90,13 +90,15 @@ export default function OperatorPage() {
     writeToOutput,
   })
   const {
-    noteTitle,
-    setNoteTitle,
-    noteText,
-    setNoteText,
+    note: activeNote,
     savedNotes,
     activeNoteId,
-    composeNoteVerse,
+    newSlideId,
+    setDeckTitle,
+    updateSlide,
+    addSlide,
+    deleteSlide,
+    moveSlide,
     selectNote,
     newNote,
     deleteNote,
@@ -135,15 +137,13 @@ export default function OperatorPage() {
   const {
     dictionaryQuery,
     dictionaryQueryNonce,
-    previewNote,
-    projectNote,
-    queueNote,
     defineSelection,
+    previewSlide,
+    projectSlide,
     previewDefinition,
     projectDefinition,
     queueDefinition,
   } = useOperatorSlideActions({
-    composeNoteVerse,
     setMode,
     setPreviewVerses,
     setLiveVerses,
@@ -247,18 +247,21 @@ export default function OperatorPage() {
         )}
         {mode === "notes" && (
           <NotesPane
-            title={noteTitle}
-            text={noteText}
+            note={activeNote}
             savedNotes={savedNotes}
             activeNoteId={activeNoteId}
-            onTitleChange={setNoteTitle}
-            onTextChange={setNoteText}
+            newSlideId={newSlideId}
+            onDeckTitleChange={setDeckTitle}
+            onSlideChange={updateSlide}
+            onAddSlide={addSlide}
+            onDeleteSlide={deleteSlide}
+            onMoveSlide={moveSlide}
             onSelectNote={selectNote}
             onNewNote={newNote}
             onDeleteNote={deleteNote}
-            onPreview={previewNote}
-            onProject={projectNote}
-            onAddToQueue={queueNote}
+            previewSlide={previewSlide}
+            projectSlide={projectSlide}
+            addToQueue={addToQueue}
           />
         )}
         {mode === "media" && (

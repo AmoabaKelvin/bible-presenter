@@ -1,26 +1,26 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import type { SelectedVerse } from "@/components/slide-stage"
-import type { SavedNote } from "@/components/operator/types"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { NoteSlide, SavedNote } from "@/components/operator/types"
 import { readLegacyJson, readPersisted, writePersisted } from "@/lib/persistence"
+import { emptySlide, newId, normalizeNote } from "@/lib/note-slides"
 
 const NOTES_KEY = "biblePresenterSavedNotes"
+const PERSIST_DEBOUNCE_MS = 400
 
-type NotesWorkspace = {
-  activeNoteId: string | null
-  draftTitle: string
-  draftBody: string
-}
+type StoredNote = Partial<SavedNote> & { body?: string }
 
 type UseOperatorNotesResult = {
-  noteTitle: string
-  setNoteTitle: (title: string) => void
-  noteText: string
-  setNoteText: (text: string) => void
+  note: SavedNote | null
   savedNotes: SavedNote[]
   activeNoteId: string | null
-  composeNoteVerse: () => SelectedVerse | null
+  // The most recently added slide, so the UI can animate it into view.
+  newSlideId: string | null
+  setDeckTitle: (title: string) => void
+  updateSlide: (slideId: string, patch: Partial<Omit<NoteSlide, "id">>) => void
+  addSlide: (afterSlideId?: string) => void
+  deleteSlide: (slideId: string) => void
+  moveSlide: (slideId: string, direction: -1 | 1) => void
   selectNote: (note: SavedNote) => void
   newNote: () => void
   deleteNote: (id: string) => void
@@ -28,25 +28,26 @@ type UseOperatorNotesResult = {
 
 export function useOperatorNotes(): UseOperatorNotesResult {
   const [loaded, setLoaded] = useState(false)
-  const [noteTitle, setNoteTitle] = useState("")
-  const [noteText, setNoteText] = useState("")
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([])
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
-  const activeNoteIdRef = useRef<string | null>(null)
-  const savedNotesRef = useRef<SavedNote[]>([])
+  const [newSlideId, setNewSlideId] = useState<string | null>(null)
 
+  // Load + migrate any persisted notes (legacy single-body notes become
+  // single-slide decks).
   useEffect(() => {
     try {
-      const sn = readPersisted<SavedNote[]>("notes", {
-        legacy: { keys: [NOTES_KEY], read: () => readLegacyJson<SavedNote[]>(NOTES_KEY) },
+      const stored = readPersisted<StoredNote[]>("notes", {
+        legacy: { keys: [NOTES_KEY], read: () => readLegacyJson<StoredNote[]>(NOTES_KEY) },
       })
-      if (sn) setSavedNotes(sn)
-      const workspace = readPersisted<NotesWorkspace>("workspace:notes")
-      if (workspace) {
-        activeNoteIdRef.current = workspace.activeNoteId
-        setActiveNoteId(workspace.activeNoteId)
-        setNoteTitle(workspace.draftTitle)
-        setNoteText(workspace.draftBody)
+      const migrated = stored ? stored.map(normalizeNote) : []
+      setSavedNotes(migrated)
+      const savedId = readPersisted<string | null>("workspace:notes:activeId")
+      // Reopen the last-edited deck, or fall back to the most recent one.
+      if (savedId && migrated.some((n) => n.id === savedId)) {
+        setActiveNoteId(savedId)
+      } else if (migrated.length) {
+        const recent = [...migrated].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+        setActiveNoteId(recent.id)
       }
     } catch {
       // ignore corrupt local state
@@ -54,112 +55,123 @@ export function useOperatorNotes(): UseOperatorNotesResult {
     setLoaded(true)
   }, [])
 
+  // Debounced persistence of the deck list and the open note.
   useEffect(() => {
-    savedNotesRef.current = savedNotes
-    if (loaded) writePersisted("notes", savedNotes)
+    if (!loaded) return
+    const handle = setTimeout(() => writePersisted("notes", savedNotes), PERSIST_DEBOUNCE_MS)
+    return () => clearTimeout(handle)
   }, [savedNotes, loaded])
 
   useEffect(() => {
     if (!loaded) return
-    const handle = setTimeout(() => {
-      writePersisted<NotesWorkspace>("workspace:notes", {
-        activeNoteId,
-        draftTitle: noteTitle,
-        draftBody: noteText,
-      })
-    }, 400)
-    return () => clearTimeout(handle)
-  }, [activeNoteId, loaded, noteText, noteTitle])
+    writePersisted<string | null>("workspace:notes:activeId", activeNoteId)
+  }, [activeNoteId, loaded])
 
-  const composeNoteVerse = useCallback((): SelectedVerse | null => {
-    if (!noteTitle.trim() && !noteText.trim()) return null
-    return {
-      kind: "note",
-      id: `note-${Date.now()}`,
-      book: "",
-      chapter: 0,
-      verse: 0,
-      text: noteText.trim(),
-      reference: noteTitle.trim(),
-    }
-  }, [noteTitle, noteText])
-
-  const persistCurrentEditor = useCallback((): string | null => {
-    const title = noteTitle.trim()
-    const body = noteText.trim()
-    if (!title && !body) return null
-    const now = Date.now()
-    const currentId = activeNoteIdRef.current
-    if (currentId) {
-      const existing = savedNotesRef.current.find((n) => n.id === currentId)
-      if (existing && existing.title === noteTitle && existing.body === noteText) {
-        return currentId
-      }
-      setSavedNotes((prev) =>
-        prev.map((n) =>
-          n.id === currentId ? { ...n, title: noteTitle, body: noteText, updatedAt: now } : n,
-        ),
-      )
-      return currentId
-    }
-    const id = `note-${now}-${Math.random().toString(36).slice(2, 7)}`
-    activeNoteIdRef.current = id
-    setActiveNoteId(id)
-    setSavedNotes((prev) => [
-      { id, title: noteTitle, body: noteText, createdAt: now, updatedAt: now },
-      ...prev,
-    ])
-    return id
-  }, [noteTitle, noteText])
-
-  useEffect(() => {
-    if (!loaded) return
-    if (!noteTitle.trim() && !noteText.trim()) return
-    const currentId = activeNoteIdRef.current
-    const active = currentId ? savedNotes.find((n) => n.id === currentId) : undefined
-    if (active && active.title === noteTitle && active.body === noteText) return
-    const handle = setTimeout(() => persistCurrentEditor(), 600)
-    return () => clearTimeout(handle)
-  }, [noteTitle, noteText, loaded, savedNotes, persistCurrentEditor])
-
-  const selectNote = useCallback(
-    (note: SavedNote) => {
-      if (note.id === activeNoteIdRef.current) return
-      persistCurrentEditor()
-      activeNoteIdRef.current = note.id
-      setActiveNoteId(note.id)
-      setNoteTitle(note.title)
-      setNoteText(note.body)
-    },
-    [persistCurrentEditor],
+  const note = useMemo(
+    () => savedNotes.find((n) => n.id === activeNoteId) ?? null,
+    [savedNotes, activeNoteId],
   )
 
-  const newNote = useCallback(() => {
-    persistCurrentEditor()
-    activeNoteIdRef.current = null
-    setActiveNoteId(null)
-    setNoteTitle("")
-    setNoteText("")
-  }, [persistCurrentEditor])
+  // Apply an update to the active deck, stamping updatedAt.
+  const editActive = useCallback(
+    (updater: (note: SavedNote) => SavedNote) => {
+      setSavedNotes((prev) =>
+        prev.map((n) => (n.id === activeNoteId ? { ...updater(n), updatedAt: Date.now() } : n)),
+      )
+    },
+    [activeNoteId],
+  )
 
-  const deleteNote = useCallback((id: string) => {
-    setSavedNotes((prev) => prev.filter((n) => n.id !== id))
-    if (id === activeNoteIdRef.current) {
-      activeNoteIdRef.current = null
-      setActiveNoteId(null)
-      setNoteTitle("")
-      setNoteText("")
-    }
+  const setDeckTitle = useCallback(
+    (title: string) => editActive((n) => ({ ...n, title })),
+    [editActive],
+  )
+
+  const updateSlide = useCallback(
+    (slideId: string, patch: Partial<Omit<NoteSlide, "id">>) =>
+      editActive((n) => ({
+        ...n,
+        slides: (n.slides ?? []).map((s) => (s.id === slideId ? { ...s, ...patch } : s)),
+      })),
+    [editActive],
+  )
+
+  const addSlide = useCallback(
+    (afterSlideId?: string) => {
+      const slide = emptySlide()
+      setNewSlideId(slide.id)
+      editActive((n) => {
+        const current = n.slides ?? []
+        if (!afterSlideId) return { ...n, slides: [...current, slide] }
+        const idx = current.findIndex((s) => s.id === afterSlideId)
+        const slides = [...current]
+        slides.splice(idx + 1, 0, slide)
+        return { ...n, slides }
+      })
+    },
+    [editActive],
+  )
+
+  const deleteSlide = useCallback(
+    (slideId: string) =>
+      editActive((n) => {
+        const slides = (n.slides ?? []).filter((s) => s.id !== slideId)
+        // A deck always keeps at least one slide.
+        return { ...n, slides: slides.length ? slides : [emptySlide()] }
+      }),
+    [editActive],
+  )
+
+  const moveSlide = useCallback(
+    (slideId: string, direction: -1 | 1) =>
+      editActive((n) => {
+        const current = n.slides ?? []
+        const idx = current.findIndex((s) => s.id === slideId)
+        const target = idx + direction
+        if (idx < 0 || target < 0 || target >= current.length) return n
+        const slides = [...current]
+        ;[slides[idx], slides[target]] = [slides[target], slides[idx]]
+        return { ...n, slides }
+      }),
+    [editActive],
+  )
+
+  const selectNote = useCallback((selected: SavedNote) => {
+    setNewSlideId(null)
+    setActiveNoteId(selected.id)
   }, [])
 
+  const newNote = useCallback(() => {
+    const now = Date.now()
+    const fresh: SavedNote = {
+      id: newId("note"),
+      title: "",
+      slides: [emptySlide()],
+      createdAt: now,
+      updatedAt: now,
+    }
+    setSavedNotes((prev) => [fresh, ...prev])
+    setActiveNoteId(fresh.id)
+  }, [])
+
+  const deleteNote = useCallback(
+    (id: string) => {
+      setSavedNotes((prev) => prev.filter((n) => n.id !== id))
+      setActiveNoteId((current) => (current === id ? null : current))
+    },
+    [],
+  )
+
   return {
-    noteTitle,
-    setNoteTitle,
-    noteText,
-    setNoteText,
+    note,
     savedNotes,
     activeNoteId,
-    composeNoteVerse,
+    newSlideId,
+    setDeckTitle,
+    updateSlide,
+    addSlide,
+    deleteSlide,
+    moveSlide,
     selectNote,
     newNote,
     deleteNote,

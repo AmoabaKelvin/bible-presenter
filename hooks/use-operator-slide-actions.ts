@@ -7,7 +7,6 @@ import type { Mode } from "@/components/operator/types"
 type MediaSlide = { id: string; url: string } | null
 
 type UseOperatorSlideActionsOptions = {
-  composeNoteVerse: () => SelectedVerse | null
   setMode: Dispatch<SetStateAction<Mode>>
   setPreviewVerses: Dispatch<SetStateAction<SelectedVerse[]>>
   setLiveVerses: Dispatch<SetStateAction<SelectedVerse[]>>
@@ -24,7 +23,6 @@ type UseOperatorSlideActionsOptions = {
 }
 
 export function useOperatorSlideActions({
-  composeNoteVerse,
   setMode,
   setPreviewVerses,
   setLiveVerses,
@@ -71,21 +69,6 @@ export function useOperatorSlideActions({
     [addToQueue],
   )
 
-  const previewNote = useCallback(() => {
-    const slide = composeNoteVerse()
-    if (slide) previewSlide(slide)
-  }, [composeNoteVerse, previewSlide])
-
-  const projectNote = useCallback(() => {
-    const slide = composeNoteVerse()
-    if (slide) projectSlide(slide)
-  }, [composeNoteVerse, projectSlide])
-
-  const queueNote = useCallback(() => {
-    const slide = composeNoteVerse()
-    if (slide) queueSlide(slide)
-  }, [composeNoteVerse, queueSlide])
-
   const defineWord = useCallback(
     (word: string) => {
       const trimmed = word.trim()
@@ -105,10 +88,11 @@ export function useOperatorSlideActions({
   return {
     dictionaryQuery,
     dictionaryQueryNonce,
-    previewNote,
-    projectNote,
-    queueNote,
     defineSelection,
+    // Generic single-slide actions, reused for note slides and definitions.
+    previewSlide,
+    projectSlide,
+    queueSlide,
     previewDefinition: previewSlide,
     projectDefinition: projectSlide,
     queueDefinition: queueSlide,
