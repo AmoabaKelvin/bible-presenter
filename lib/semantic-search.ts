@@ -71,8 +71,21 @@ async function buildEngine(): Promise<Engine | null> {
 
     // transformers.js is heavy and browser-only — load it lazily.
     const { pipeline, env } = await import("@huggingface/transformers")
-    env.allowLocalModels = false // models come from the HF CDN, not /models
-    const extractor = await pipeline("feature-extraction", meta.model)
+    // Serve the model + ONNX-runtime WASM from our own origin (see
+    // scripts/fetch-model.mjs) so meaning-search works fully offline — no
+    // HuggingFace/CDN at runtime. Single-threaded because the app isn't
+    // cross-origin isolated (no SharedArrayBuffer).
+    env.allowRemoteModels = false
+    env.allowLocalModels = true
+    env.localModelPath = "/models/"
+    const wasm = env.backends?.onnx?.wasm
+    if (wasm) {
+      wasm.wasmPaths = "/ort/"
+      wasm.numThreads = 1
+    }
+    const extractor = await pipeline("feature-extraction", meta.model, {
+      dtype: "q8",
+    })
 
     const embed = async (text: string): Promise<Float32Array> => {
       const out = await extractor(meta.queryPrefix + text, {

@@ -47,6 +47,10 @@ function isStaticAsset(url) {
   return (
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/dictionaries/") ||
+    // Self-hosted embedding model + ONNX-runtime WASM: cache-first so the
+    // Bible meaning-search keeps working offline after the first (online) load.
+    url.pathname.startsWith("/models/") ||
+    url.pathname.startsWith("/ort/") ||
     /\.(?:js|css|woff2?|png|jpg|jpeg|gif|svg|ico|webp|avif)$/.test(url.pathname)
   )
 }
