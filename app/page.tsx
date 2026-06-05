@@ -6,6 +6,7 @@ import { LeftRail } from "@/components/operator/left-rail"
 import { CommandPalette } from "@/components/operator/command-palette"
 import { BiblePane } from "@/components/operator/bible-pane"
 import { NotesPane } from "@/components/operator/notes-pane"
+import { SongsPane } from "@/components/operator/songs-pane"
 import { MediaPane } from "@/components/operator/media-pane"
 import { DictionaryPane } from "@/components/operator/dictionary-pane"
 import { RightRail } from "@/components/operator/right-rail"
@@ -15,6 +16,7 @@ import { useOperatorKeyboardShortcuts } from "@/hooks/use-operator-keyboard-shor
 import { useOperatorMedia } from "@/hooks/use-operator-media"
 import { useOperatorMusic } from "@/hooks/use-operator-music"
 import { useOperatorNotes } from "@/hooks/use-operator-notes"
+import { useOperatorSongs } from "@/hooks/use-operator-songs"
 import { useOperatorProjection } from "@/hooks/use-operator-projection"
 import { useOperatorSlideActions } from "@/hooks/use-operator-slide-actions"
 import { usePersistedState } from "@/hooks/use-persisted-state"
@@ -103,6 +105,21 @@ export default function OperatorPage() {
     newNote,
     deleteNote,
   } = useOperatorNotes()
+  const {
+    song: activeSong,
+    songs,
+    activeSongId,
+    newSlideId: newSongSlideId,
+    setTitle: setSongTitle,
+    updateSlide: updateSongSlide,
+    addSlide: addSongSlide,
+    deleteSlide: deleteSongSlide,
+    moveSlide: moveSongSlide,
+    createBlankSong,
+    createFromPaste,
+    selectSong,
+    removeSong,
+  } = useOperatorSongs()
   const {
     selectedBook,
     selectedChapter,
@@ -251,6 +268,7 @@ export default function OperatorPage() {
             savedNotes={savedNotes}
             activeNoteId={activeNoteId}
             newSlideId={newSlideId}
+            liveVerses={liveVerses}
             onDeckTitleChange={setDeckTitle}
             onSlideChange={updateSlide}
             onAddSlide={addSlide}
@@ -259,6 +277,27 @@ export default function OperatorPage() {
             onSelectNote={selectNote}
             onNewNote={newNote}
             onDeleteNote={deleteNote}
+            previewSlide={previewSlide}
+            projectSlide={projectSlide}
+            addToQueue={addToQueue}
+          />
+        )}
+        {mode === "songs" && (
+          <SongsPane
+            song={activeSong}
+            songs={songs}
+            activeSongId={activeSongId}
+            newSlideId={newSongSlideId}
+            liveVerses={liveVerses}
+            onTitleChange={setSongTitle}
+            onSlideChange={updateSongSlide}
+            onAddSlide={addSongSlide}
+            onDeleteSlide={deleteSongSlide}
+            onMoveSlide={moveSongSlide}
+            onSelectSong={selectSong}
+            onNewSong={createBlankSong}
+            onCreateFromPaste={createFromPaste}
+            onDeleteSong={removeSong}
             previewSlide={previewSlide}
             projectSlide={projectSlide}
             addToQueue={addToQueue}

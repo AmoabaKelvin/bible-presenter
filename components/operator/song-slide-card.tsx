@@ -1,31 +1,17 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { useEditor, EditorContent, type Editor } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
-import Placeholder from "@tiptap/extension-placeholder"
-import Highlight from "@tiptap/extension-highlight"
-import { Markdown } from "tiptap-markdown"
 import { ChevronUp, ChevronDown, Trash2, Eye, Plus, Radio } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { NoteFormatBar } from "./notes-toolbar"
-import type { NoteSlide } from "./types"
+import type { SongSlide } from "./types"
 
-function getMarkdown(editor: Editor): string {
-  return (
-    editor.storage as unknown as { markdown: { getMarkdown: () => string } }
-  ).markdown.getMarkdown()
-}
-
-interface NoteSlideCardProps {
-  slide: NoteSlide
+interface SongSlideCardProps {
+  slide: SongSlide
   index: number
   total: number
   isNew: boolean
-  isActive: boolean
   isLive: boolean
-  onActivate: () => void
-  onChange: (patch: Partial<Pick<NoteSlide, "title" | "body">>) => void
+  onChange: (patch: Partial<Pick<SongSlide, "label" | "lines">>) => void
   onPreview: () => void
   onProject: () => void
   onQueue: () => void
@@ -34,14 +20,12 @@ interface NoteSlideCardProps {
   onMoveDown: () => void
 }
 
-export function NoteSlideCard({
+export function SongSlideCard({
   slide,
   index,
   total,
   isNew,
-  isActive,
   isLive,
-  onActivate,
   onChange,
   onPreview,
   onProject,
@@ -49,61 +33,39 @@ export function NoteSlideCard({
   onDelete,
   onMoveUp,
   onMoveDown,
-}: NoteSlideCardProps) {
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [
-      StarterKit,
-      Placeholder.configure({ placeholder: "Slide text…" }),
-      Highlight,
-      Markdown.configure({ html: true, transformPastedText: true }),
-    ],
-    content: slide.body,
-    editorProps: {
-      attributes: {
-        class:
-          "tiptap prose prose-neutral dark:prose-invert max-w-none focus:outline-none min-h-[120px] text-[17px] leading-8",
-      },
-    },
-    onUpdate: ({ editor }) => onChange({ body: getMarkdown(editor) }),
-  })
-
-  // Reflect external content changes (selecting another note) into the editor
-  // without echoing our own edits back in.
-  useEffect(() => {
-    if (!editor) return
-    if (slide.body !== getMarkdown(editor)) {
-      editor.commands.setContent(slide.body, { emitUpdate: false })
-    }
-  }, [slide.body, editor])
+}: SongSlideCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const enteredRef = useRef(false)
 
   // A freshly added slide scrolls into view and takes focus, once.
-  const cardRef = useRef<HTMLDivElement>(null)
-  const enteredRef = useRef(false)
   useEffect(() => {
-    if (!isNew || enteredRef.current || !editor) return
+    if (!isNew || enteredRef.current) return
     enteredRef.current = true
     cardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
-    editor.commands.focus("end")
-  }, [isNew, editor])
+    textareaRef.current?.focus()
+  }, [isNew])
 
   return (
     <div
       ref={cardRef}
-      onFocusCapture={onActivate}
       className={`rounded-lg bg-card/40 overflow-hidden transition-colors ${
         isLive
           ? "border-2 border-[color:var(--live)]"
-          : isActive
-            ? "border border-foreground/25"
-            : "border border-border"
+          : "border border-border focus-within:border-foreground/25"
       } ${isNew ? "animate-in fade-in-0 slide-in-from-top-2 duration-300 ease-out" : ""}`}
     >
       <div className="flex items-center justify-between gap-2 px-3 h-10 border-b border-border bg-muted/30">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
-            Slide {index + 1}
+            {index + 1}
           </span>
+          <input
+            value={slide.label}
+            onChange={(e) => onChange({ label: e.target.value })}
+            placeholder="Label — optional"
+            className="w-40 bg-transparent border-0 outline-none text-[12px] text-muted-foreground placeholder:text-muted-foreground/35"
+          />
           <IconBtn label="Move up" disabled={index === 0} onClick={onMoveUp}>
             <ChevronUp className="size-3.5" />
           </IconBtn>
@@ -128,21 +90,14 @@ export function NoteSlideCard({
         </div>
       </div>
 
-      <div className="px-4 py-3">
-        <input
-          value={slide.title}
-          onChange={(e) => onChange({ title: e.target.value })}
-          placeholder="Title — optional"
-          className="w-full bg-transparent border-0 outline-none text-[15px] font-semibold tracking-tight placeholder:text-muted-foreground/35 mb-1.5"
-        />
-        <EditorContent editor={editor} />
-      </div>
-
-      {isActive && (
-        <div className="px-3 py-1.5 border-t border-border bg-muted/20 animate-in fade-in-0 duration-150">
-          <NoteFormatBar editor={editor} />
-        </div>
-      )}
+      <textarea
+        ref={textareaRef}
+        value={slide.lines.join("\n")}
+        onChange={(e) => onChange({ lines: e.target.value.split("\n") })}
+        placeholder="Lyrics…"
+        rows={Math.max(2, slide.lines.length)}
+        className="w-full resize-none bg-transparent border-0 outline-none px-4 py-3 font-serif text-[17px] leading-8 placeholder:text-muted-foreground/35"
+      />
     </div>
   )
 }

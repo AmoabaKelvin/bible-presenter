@@ -1,7 +1,7 @@
 import type { SelectedVerse, FontSize, SlideKind } from "@/components/slide-stage"
 import type { PresentationSettings } from "@/lib/presentation-settings"
 
-export type Mode = "bible" | "notes" | "media" | "dictionary"
+export type Mode = "bible" | "notes" | "songs" | "media" | "dictionary"
 
 export interface HistoryItem {
   id: string
@@ -35,6 +35,24 @@ export interface SavedNote {
   id: string
   title: string
   slides: NoteSlide[]
+  createdAt: number
+  updatedAt: number
+}
+
+// One projected lyric slide (a blank-line block from the pasted lyrics).
+// `label` is an operator-only hint ("Verse 1", "Chorus") and is never projected.
+export interface SongSlide {
+  id: string
+  label: string
+  lines: string[]
+}
+
+// A song is an ordered list of lyric slides; the pasted order is the
+// performance order (no separate arrangement in the MVP).
+export interface Song {
+  id: string
+  title: string
+  slides: SongSlide[]
   createdAt: number
   updatedAt: number
 }

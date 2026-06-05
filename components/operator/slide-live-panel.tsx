@@ -74,8 +74,10 @@ export function SlideLivePanel({
       </div>
 
       <div
-        className={`aspect-video rounded-md overflow-hidden bg-black relative border ${
-          isLive ? "border-[color:var(--live)]/60" : "border-border"
+        className={`aspect-video rounded-md overflow-hidden bg-black relative ${
+          isLive
+            ? "border-2 border-[color:var(--live)] shadow-[0_0_0_3px_color-mix(in_oklch,var(--live)_22%,transparent)]"
+            : "border border-border"
         }`}
       >
         <SlideStage

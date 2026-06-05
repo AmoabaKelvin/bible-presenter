@@ -21,7 +21,7 @@ export const SLIDE_WIDTH = 1920
 export const SLIDE_HEIGHT = 1080
 
 export type FontSize = "small" | "medium" | "large" | "extra-large"
-export type SlideKind = "scripture" | "note" | "definition"
+export type SlideKind = "scripture" | "note" | "definition" | "song"
 
 export interface SelectedVerse {
   kind: SlideKind
@@ -146,6 +146,10 @@ function isNote(verse: SelectedVerse) {
     : verse.id.startsWith("note-") || verse.id.startsWith("history-")
 }
 
+function isSong(verse: SelectedVerse) {
+  return verse.kind === "song" || verse.id.startsWith("song-")
+}
+
 interface SlideContentProps {
   verses: SelectedVerse[]
   fontSize: FontSize
@@ -232,7 +236,22 @@ export function SlideContent({
       >
         {verses.map((v) => (
           <div key={v.id} data-verse-id={v.id} style={{ width: "100%" }}>
-            {isNote(v) ? (
+            {isSong(v) ? (
+              // Lyrics: plain lines, breaks preserved, no reference line.
+              <p
+                data-verse-text
+                className="leading-relaxed font-serif"
+                style={{
+                  whiteSpace: "pre-line",
+                  fontSize: verseFs,
+                  fontFamily,
+                  fontWeight: scriptureWeight,
+                  textTransform,
+                }}
+              >
+                {v.text}
+              </p>
+            ) : isNote(v) ? (
               <>
                 {v.reference && (
                   <p

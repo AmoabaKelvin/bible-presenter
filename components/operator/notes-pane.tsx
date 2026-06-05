@@ -14,6 +14,7 @@ interface NotesPaneProps {
   savedNotes: SavedNote[]
   activeNoteId: string | null
   newSlideId: string | null
+  liveVerses: SelectedVerse[]
   onDeckTitleChange: (title: string) => void
   onSlideChange: (slideId: string, patch: Partial<Pick<NoteSlide, "title" | "body">>) => void
   onAddSlide: () => void
@@ -32,6 +33,7 @@ export function NotesPane({
   savedNotes,
   activeNoteId,
   newSlideId,
+  liveVerses,
   onDeckTitleChange,
   onSlideChange,
   onAddSlide,
@@ -47,6 +49,10 @@ export function NotesPane({
   const slides = note?.slides ?? []
   // The format bar shows only for the slide currently being edited.
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null)
+  // Mark the card whose content matches what's currently on the live output.
+  const liveTexts = new Set(
+    liveVerses.filter((v) => v.kind === "note").map((v) => v.text),
+  )
 
   const queueAll = () => {
     const verses = slides.filter(slideHasContent).map(noteSlideToVerse)
@@ -102,6 +108,7 @@ export function NotesPane({
                   total={slides.length}
                   isNew={slide.id === newSlideId}
                   isActive={slide.id === activeSlideId}
+                  isLive={slide.body.trim() !== "" && liveTexts.has(slide.body.trim())}
                   onActivate={() => setActiveSlideId(slide.id)}
                   onChange={(patch) => onSlideChange(slide.id, patch)}
                   onPreview={() => previewSlide(noteSlideToVerse(slide))}
