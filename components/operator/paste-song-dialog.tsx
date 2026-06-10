@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -23,7 +24,7 @@ import {
 interface PasteSongDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (title: string, lyrics: string) => void
+  onCreate: (title: string, lyrics: string, linesPerSlide?: number) => void
   onStartBlank: () => void
 }
 
@@ -38,6 +39,8 @@ export function PasteSongDialog({
   const [tab, setTab] = useState<Tab>("search")
   const [title, setTitle] = useState("")
   const [lyrics, setLyrics] = useState("")
+  const [linesPerSlide, setLinesPerSlide] = useState("")
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SongSearchResult[]>([])
@@ -54,6 +57,8 @@ export function PasteSongDialog({
     setTab("search")
     setTitle("")
     setLyrics("")
+    setLinesPerSlide("")
+    setConfirmOpen(false)
     setQuery("")
     setResults([])
     setSearched(false)
@@ -110,7 +115,8 @@ export function PasteSongDialog({
 
   const create = () => {
     if (!lyrics.trim()) return
-    onCreate(title, lyrics)
+    const n = parseInt(linesPerSlide, 10)
+    onCreate(title, lyrics, Number.isInteger(n) && n > 0 ? n : undefined)
     reset()
     onOpenChange(false)
   }
@@ -231,7 +237,8 @@ export function PasteSongDialog({
               className="min-h-[260px] font-serif text-[15px] leading-7"
             />
             <p className="text-[11px] text-muted-foreground">
-              A blank line starts a new slide.
+              A blank line starts a new slide. You can set a fixed lines-per-slide
+              when you create the song.
             </p>
           </TabsContent>
         </Tabs>
@@ -240,9 +247,42 @@ export function PasteSongDialog({
           <Button variant="ghost" size="sm" onClick={startBlank}>
             Start blank instead
           </Button>
-          <Button size="sm" onClick={create} disabled={!lyrics.trim()}>
-            Create song
-          </Button>
+          <Popover open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" disabled={!lyrics.trim()}>
+                Create song
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="top" className="w-72 space-y-3">
+              <div className="space-y-1">
+                <p className="text-[13px] font-medium">Lines per slide</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Leave blank to start a new slide on each blank line (default), or
+                  set a number to break every that many lines.
+                </p>
+              </div>
+              <Input
+                type="number"
+                min={1}
+                value={linesPerSlide}
+                onChange={(e) => setLinesPerSlide(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    create()
+                  }
+                }}
+                placeholder="Auto"
+                autoFocus
+                className="h-9"
+              />
+              <div className="flex justify-end">
+                <Button size="sm" onClick={create}>
+                  Create song
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </DialogFooter>
       </DialogContent>
     </Dialog>

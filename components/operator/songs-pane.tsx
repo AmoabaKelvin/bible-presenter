@@ -34,7 +34,7 @@ interface SongsPaneProps {
   onMoveSlide: (slideId: string, direction: -1 | 1) => void
   onSelectSong: (song: Song) => void
   onNewSong: () => void
-  onCreateFromPaste: (title: string, lyrics: string) => void
+  onCreateFromPaste: (title: string, lyrics: string, linesPerSlide?: number) => void
   onDeleteSong: (id: string) => void
   previewSlide: (verse: SelectedVerse) => void
   projectSlide: (verse: SelectedVerse) => void

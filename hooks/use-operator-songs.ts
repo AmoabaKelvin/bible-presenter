@@ -24,7 +24,7 @@ type UseOperatorSongsResult = {
   deleteSlide: (slideId: string) => void
   moveSlide: (slideId: string, direction: -1 | 1) => void
   createBlankSong: () => void
-  createFromPaste: (title: string, lyrics: string) => void
+  createFromPaste: (title: string, lyrics: string, linesPerSlide?: number) => void
   selectSong: (song: Song) => void
   removeSong: (id: string) => void
 }
@@ -142,8 +142,8 @@ export function useOperatorSongs(): UseOperatorSongsResult {
   }, [addSong])
 
   const createFromPaste = useCallback(
-    (title: string, lyrics: string) => {
-      const parsed = parseSongLyrics(lyrics)
+    (title: string, lyrics: string, linesPerSlide?: number) => {
+      const parsed = parseSongLyrics(lyrics, { linesPerSlide })
       const slides = parsed.length ? parsed : [emptySongSlide()]
       const now = Date.now()
       addSong({

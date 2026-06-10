@@ -30,7 +30,20 @@ function dropLeadingBlank(lines: string[]): void {
   while (lines.length && !lines[0].trim()) lines.shift()
 }
 
-export function parseSongLyrics(raw: string): SongSlide[] {
+// When `linesPerSlide` is a positive integer, each section paginates every N
+// lines instead of the default 8/4 rule. Blank lines still split sections and
+// leading section headers are still lifted into labels — only the pagination
+// granularity changes. An undefined/zero/invalid value keeps the default rule.
+export function parseSongLyrics(
+  raw: string,
+  options?: { linesPerSlide?: number },
+): SongSlide[] {
+  const perSlide = options?.linesPerSlide
+  const fixedStep =
+    typeof perSlide === "number" && Number.isInteger(perSlide) && perSlide > 0
+      ? perSlide
+      : 0
+
   const text = raw.replace(/\r\n?/g, "\n")
   const blocks = text.split(/\n[ \t]*\n+/)
   const slides: SongSlide[] = []
@@ -57,8 +70,13 @@ export function parseSongLyrics(raw: string): SongSlide[] {
       label = `Verse ${verseCount}`
     }
 
-    // Long sections (e.g. blank-line-free LRCLIB records) paginate into chunks.
-    const step = lines.length <= MAX_LINES_PER_SLIDE ? lines.length : SPLIT_CHUNK
+    // With a fixed lines-per-slide, paginate every N lines; otherwise long
+    // sections (e.g. blank-line-free LRCLIB records) split into chunks.
+    const step = fixedStep
+      ? fixedStep
+      : lines.length <= MAX_LINES_PER_SLIDE
+        ? lines.length
+        : SPLIT_CHUNK
     for (let i = 0; i < lines.length; i += step) {
       slides.push({ id: newId("ss"), label, lines: lines.slice(i, i + step) })
     }
