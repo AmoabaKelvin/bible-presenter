@@ -11,10 +11,15 @@ import { Button } from "@/components/ui/button"
 import { BIBLE_VERSIONS } from "@/lib/bible-data"
 import {
   downloadTranslation,
+  hydrateFromBundle,
   TOTAL_CHAPTERS,
   type DownloadProgress,
 } from "@/lib/offline-download"
 import { deleteVersion, listDownloadedVersions } from "@/lib/bible-cache"
+
+// Versions the eightlabs API doesn't serve: they hydrate from their baked-in
+// public/bibles bundle rather than a network download.
+const BUNDLE_ONLY = new Set(["CEV", "TLB"])
 
 // A small SVG ring that fills clockwise with download progress. When
 // indeterminate (indexing phase) it spins with a fixed partial arc.
@@ -89,10 +94,18 @@ export function OfflineManager() {
     controllers.current.set(code, controller)
     setProgress((p) => ({ ...p, [code]: { phase: "fetching", done: 0, total: TOTAL_CHAPTERS } }))
     try {
-      await downloadTranslation(code, {
-        signal: controller.signal,
-        onProgress: (pr) => setProgress((p) => ({ ...p, [code]: pr })),
-      })
+      // CEV/TLB aren't served by the eightlabs API, so they hydrate from their
+      // baked-in public/bibles bundle instead of a network download.
+      if (BUNDLE_ONLY.has(code)) {
+        await hydrateFromBundle(code, {
+          onProgress: (pr) => setProgress((p) => ({ ...p, [code]: pr })),
+        })
+      } else {
+        await downloadTranslation(code, {
+          signal: controller.signal,
+          onProgress: (pr) => setProgress((p) => ({ ...p, [code]: pr })),
+        })
+      }
       await refresh()
     } catch {
       // aborted or network failure — leave version undownloaded
@@ -168,7 +181,7 @@ export function OfflineManager() {
                     variant="ghost"
                     className="h-7 w-7 p-0"
                     onClick={() => handleDownload(v.code)}
-                    disabled={!online}
+                    disabled={!online && !BUNDLE_ONLY.has(v.code)}
                     aria-label={`Download ${v.code}`}
                   >
                     <Download className="size-3.5" />

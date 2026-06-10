@@ -4,8 +4,8 @@ import { useEffect, useState } from "react"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
 import type { BibleBook } from "@/lib/bible-data"
 import { BIBLE_API_BASE, getApiTranslationId, getBookId } from "@/lib/bible-data"
-import { getCachedChapter, getVersionMeta, putCachedChapter } from "@/lib/bible-cache"
-import { hydrateTranslation } from "@/lib/offline-download"
+import { getCachedChapter, putCachedChapter } from "@/lib/bible-cache"
+import { ensureBundleHydrated } from "@/lib/offline-download"
 
 type UseBibleChapterOptions = {
   version: string
@@ -63,6 +63,25 @@ export function useBibleChapter({
           setChapterLoading(false)
           return
         }
+
+        // Bundle-only versions (e.g. CEV, TLB) aren't served by the API, so on a
+        // cache miss hydrate the baked-in bundle and read the chapter from it
+        // rather than falling through to a fetch that would 404.
+        const hydration = ensureBundleHydrated(version)
+        if (hydration) {
+          await hydration
+          if (controller.signal.aborted) return
+          const fromBundle = await getCachedChapter(version, selectedBook.name, selectedChapter)
+          if (fromBundle && fromBundle.length > 0) {
+            setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: fromBundle })
+          } else {
+            setChapterError("This chapter is not available in the selected translation.")
+            setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: [] })
+          }
+          setChapterLoading(false)
+          return
+        }
+
         const bookId = getBookId(selectedBook.name)
         const translation = getApiTranslationId(version)
         const url =
@@ -97,20 +116,6 @@ export function useBibleChapter({
 
     return () => controller.abort()
   }, [selectedBook, selectedChapter, version])
-
-  useEffect(() => {
-    ;(async () => {
-      try {
-        if (await getVersionMeta("KJV")) return
-        const res = await fetch("/bibles/kjv.json")
-        if (!res.ok) return
-        const data = await res.json()
-        await hydrateTranslation("KJV", data.chapters)
-      } catch {
-        // asset may be absent in dev before the fetch script runs - ignore
-      }
-    })()
-  }, [])
 
   return { chapterVerses, chapterLoading, chapterError }
 }

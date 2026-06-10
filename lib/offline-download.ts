@@ -5,7 +5,7 @@
 // shared so a prebuilt JSON bundle (public/bibles) can skip the network.
 
 import { allBooks, getApiTranslationId, getBookId, BIBLE_API_BASE } from "@/lib/bible-data"
-import { putCachedChapter, putSearchIndex, setVersionMeta, type ChapterVerse } from "@/lib/bible-cache"
+import { getVersionMeta, putCachedChapter, putSearchIndex, setVersionMeta, type ChapterVerse } from "@/lib/bible-cache"
 import { buildIndex, serializeIndex, type IndexDoc } from "@/lib/scripture-index"
 
 export const TOTAL_CHAPTERS: number = allBooks.reduce((sum, book) => sum + book.chapters.length, 0)
@@ -13,6 +13,53 @@ export const TOTAL_CHAPTERS: number = allBooks.reduce((sum, book) => sum + book.
 export type DownloadProgress = { phase: "fetching" | "indexing" | "done"; done: number; total: number }
 
 const CONCURRENCY = 6
+
+// Versions that ship as a prebuilt JSON bundle under public/bibles instead of
+// being fetched from the eightlabs API. CEV and TLB are not served by that API,
+// so they can only be hydrated from their baked-in bundle.
+export const BUNDLED_VERSIONS: Record<string, string> = {
+  KJV: "/bibles/kjv.json",
+  BSB: "/bibles/bsb.json",
+  CEV: "/bibles/cev.json",
+  TLB: "/bibles/tlb.json",
+}
+
+// Hydrate a version straight from its prebuilt public/bibles bundle, skipping
+// the network entirely. Used for translations the API does not serve.
+export async function hydrateFromBundle(
+  version: string,
+  opts?: { onProgress?: (p: DownloadProgress) => void },
+): Promise<void> {
+  const url = BUNDLED_VERSIONS[version]
+  if (!url) throw new Error(`No bundle for ${version}`)
+  opts?.onProgress?.({ phase: "fetching", done: 0, total: TOTAL_CHAPTERS })
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to load bundle ${url}: ${res.status}`)
+  const data = await res.json()
+  opts?.onProgress?.({ phase: "fetching", done: TOTAL_CHAPTERS, total: TOTAL_CHAPTERS })
+  await hydrateTranslation(version, data.chapters, { onProgress: opts?.onProgress })
+}
+
+// Idempotent, deduped hydration of a baked-in bundle. Returns null for versions
+// that don't ship a bundle. Shared by the chapter reader (lazy, on a cache miss)
+// and the background warm-up so a version is only ever hydrated once per session
+// — concurrent callers await the same in-flight promise.
+const bundleHydration = new Map<string, Promise<void>>()
+
+export function ensureBundleHydrated(version: string): Promise<void> | null {
+  if (!(version in BUNDLED_VERSIONS)) return null
+  let pending = bundleHydration.get(version)
+  if (!pending) {
+    pending = (async () => {
+      if (await getVersionMeta(version)) return
+      await hydrateFromBundle(version)
+    })()
+    // Drop a failed hydration so a later read or warm pass can retry.
+    pending.catch(() => bundleHydration.delete(version))
+    bundleHydration.set(version, pending)
+  }
+  return pending
+}
 
 async function fetchChapter(
   apiId: string,
