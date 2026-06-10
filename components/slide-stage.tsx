@@ -11,6 +11,7 @@ import {
   MARGIN_Y_BOUNDS,
   REFERENCE_WEIGHT_VALUE,
   SCRIPTURE_WEIGHT_VALUE,
+  clampFontScale,
   clampMargin,
   fontFamilyCss,
   mergePresentation,
@@ -179,33 +180,54 @@ export function SlideContent({
   const style = mergePresentation(presentation)
   const align = ALIGNMENT_CSS[style.alignment]
   const fontFamily = fontFamilyCss(style.fontFamily)
+  // The reference may use its own face; empty inherits the scripture font.
+  const referenceFontFamily = fontFamilyCss(style.referenceFontFamily) ?? fontFamily
+  const referenceAbove = style.referencePosition === "above"
   const textTransform = style.textCase === "uppercase" ? "uppercase" : undefined
   const scriptureWeight = SCRIPTURE_WEIGHT_VALUE[style.scriptureWeight]
   const referenceWeight = REFERENCE_WEIGHT_VALUE[style.referenceWeight]
+  const fontScale = clampFontScale(style.fontScale)
 
   // Margins define the safe area the auto-fit targets: vertical sets the height
   // the text fills, horizontal sets the line length.
   const marginX = clampMargin(style.marginX, MARGIN_X_BOUNDS)
   const marginY = clampMargin(style.marginY, MARGIN_Y_BOUNDS)
-  const availableHeight = SLIDE_HEIGHT - marginY * 2
+  // Scaling up shrinks the area the fit targets — both height and the wrap
+  // width — so multiplying the fitted sizes by the scale lands the text back
+  // inside the safe area in both axes. Scaling down leaves the fit untouched.
+  const upscale = Math.max(1, fontScale)
   const contentMaxWidth = SLIDE_WIDTH - marginX * 2
+  const availableHeight = (SLIDE_HEIGHT - marginY * 2) / upscale
+  // The fit measures (and the block renders) at this narrower width, so the
+  // scaled-up lines wrap to exactly contentMaxWidth.
+  const fitWidth = contentMaxWidth / upscale
 
   const {
     measuring,
     setRefs,
-    verseFs,
-    refFs,
-    noteTitleFs,
-    refMt,
-    noteTitleMb,
-    gap,
+    verseFs: fitVerseFs,
+    refFs: fitRefFs,
+    noteTitleFs: fitNoteTitleFs,
+    refMt: fitRefMt,
+    noteTitleMb: fitNoteTitleMb,
+    gap: fitGap,
   } = useSlideTextFit({
     verses,
     fontSize,
     availableHeight,
-    availableWidth: contentMaxWidth,
+    availableWidth: fitWidth,
     innerRef,
   })
+
+  // Scale the fitted sizes (and their proportional spacing) so a larger scale
+  // keeps the same rhythm. The fit already targets a smaller area when scaled
+  // up, so the multiplied result stays inside the safe area.
+  const verseFs = fitVerseFs * fontScale
+  const refFs = fitRefFs * fontScale
+  const noteTitleFs = fitNoteTitleFs * fontScale
+  const refMt = fitRefMt * fontScale
+  const noteTitleMb = fitNoteTitleMb * fontScale
+  const gap = fitGap * fontScale
 
   return (
     <div
@@ -221,7 +243,9 @@ export function SlideContent({
         ref={setRefs}
         style={{
           width: "100%",
-          maxWidth: contentMaxWidth,
+          // Wrap at the (possibly narrower) fit width; multiplying the font
+          // sizes by the scale expands the rendered block to contentMaxWidth.
+          maxWidth: fitWidth,
           display: "flex",
           flexDirection: "column",
           alignItems:
@@ -282,6 +306,21 @@ export function SlideContent({
               </>
             ) : (
               <>
+                {v.reference && referenceAbove && (
+                  <p
+                    className="italic"
+                    style={{
+                      marginBottom: refMt,
+                      fontSize: refFs,
+                      fontFamily: referenceFontFamily,
+                      fontWeight: referenceWeight,
+                      color: referenceColor,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {v.reference} ({v.version || defaultVersion})
+                  </p>
+                )}
                 <p
                   data-verse-text
                   className={`leading-relaxed font-serif ${
@@ -295,13 +334,13 @@ export function SlideContent({
                   }}
                   dangerouslySetInnerHTML={{ __html: v.text }}
                 />
-                {v.reference && (
+                {v.reference && !referenceAbove && (
                   <p
                     className="italic"
                     style={{
                       marginTop: refMt,
                       fontSize: refFs,
-                      fontFamily,
+                      fontFamily: referenceFontFamily,
                       fontWeight: referenceWeight,
                       color: referenceColor,
                       lineHeight: 1.3,

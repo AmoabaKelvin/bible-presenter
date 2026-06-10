@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { FontSize } from "@/components/slide-stage"
 import { LeftRail } from "@/components/operator/left-rail"
 import { CommandPalette } from "@/components/operator/command-palette"
+import { ShowsLibrary } from "@/components/operator/shows-library"
 import { BiblePane } from "@/components/operator/bible-pane"
 import { NotesPane } from "@/components/operator/notes-pane"
 import { SongsPane } from "@/components/operator/songs-pane"
@@ -22,7 +23,9 @@ import { useOperatorSlideActions } from "@/hooks/use-operator-slide-actions"
 import { usePersistedState } from "@/hooks/use-persisted-state"
 import { useGoogleFont } from "@/hooks/use-google-font"
 import { useWarmSemanticIndex } from "@/hooks/use-warm-semantic-index"
-import { DEFAULT_PRESENTATION, type PresentationSettings } from "@/lib/presentation-settings"
+import { useWarmBundledBibles } from "@/hooks/use-warm-bundled-bibles"
+import { DEFAULT_PRESENTATION, mergePresentation, type PresentationSettings } from "@/lib/presentation-settings"
+import type { ShowSnapshot } from "@/components/operator/types"
 
 const VERSION_KEY = "bibleVersion"
 
@@ -30,12 +33,19 @@ export default function OperatorPage() {
   const [mode, setMode] = usePersistedState<Mode>("workspace:mode", "bible")
   const [fontSize, setFontSize] = usePersistedState<FontSize>("workspace:fontSize", "extra-large")
   const [version, setVersion] = usePersistedState(VERSION_KEY, "KJV")
-  const [presentation, setPresentation] = usePersistedState<PresentationSettings>(
+  const [storedPresentation, setPresentation] = usePersistedState<PresentationSettings>(
     "presentation",
     DEFAULT_PRESENTATION,
   )
+  // Settings persisted before newer fields (referenceFontFamily, referencePosition,
+  // fontScale) existed lack them; merge defaults so every consumer sees a complete
+  // object and never reads an undefined field.
+  const presentation = useMemo(() => mergePresentation(storedPresentation), [storedPresentation])
   useGoogleFont(presentation.fontFamily)
+  useGoogleFont(presentation.referenceFontFamily)
+  useWarmBundledBibles(version)
   useWarmSemanticIndex()
+  const [showsOpen, setShowsOpen] = useState(false)
 
   const previewContentRef = useRef<HTMLDivElement>(null)
   const {
@@ -66,24 +76,20 @@ export default function OperatorPage() {
     queuePrev,
     queueNext,
     clearQueue,
+    restoreQueue,
     applyHighlight,
     clearHighlights,
   } = useOperatorProjection({ fontSize, version, previewContentRef })
   const {
     media,
-    backgroundColor,
-    setBackgroundColor,
-    backgroundImageUrl,
-    backgroundKind,
+    background,
     themeLoaded,
     handleMediaUpload,
     deleteMedia,
     handlePreviewMedia,
     handleProjectMedia,
     prepareMedia,
-    handleBackgroundUpload,
-    clearBackgroundImage,
-    resetBackground,
+    setMediaAsBackground,
   } = useOperatorMedia({
     setPreviewVerses,
     setLiveVerses,
@@ -96,6 +102,7 @@ export default function OperatorPage() {
     savedNotes,
     activeNoteId,
     newSlideId,
+    folders: noteFolders,
     setDeckTitle,
     updateSlide,
     addSlide,
@@ -104,6 +111,10 @@ export default function OperatorPage() {
     selectNote,
     newNote,
     deleteNote,
+    createFolder: createNoteFolder,
+    renameFolder: renameNoteFolder,
+    deleteFolder: deleteNoteFolder,
+    moveNoteToFolder,
   } = useOperatorNotes()
   const {
     song: activeSong,
@@ -132,6 +143,7 @@ export default function OperatorPage() {
     handleReferenceChange,
     handleJumpSelect,
     handleJumpProject,
+    goToReference,
     handleSelectVerse,
     handleDoubleClickVerse,
     stepSelectedVerse,
@@ -204,6 +216,46 @@ export default function OperatorPage() {
     stop: handleMusicStop,
   } = useOperatorMusic({ openOutputWindow })
 
+  // ── Shows: capture / restore a full operator snapshot ──────────────────
+  const captureSnapshot = useCallback(
+    (): ShowSnapshot => ({
+      queue,
+      queueCursor,
+      liveVerses,
+      version,
+      presentation,
+      background: background.config,
+    }),
+    [queue, queueCursor, liveVerses, version, presentation, background.config],
+  )
+
+  const restoreSnapshot = useCallback(
+    (snapshot: ShowSnapshot) => {
+      setVersion(snapshot.version)
+      setPresentation(snapshot.presentation)
+      background.replaceConfig(snapshot.background)
+      restoreQueue(snapshot.queue, snapshot.queueCursor)
+      setLiveVerses(snapshot.liveVerses)
+      writeToOutput(
+        snapshot.liveVerses.length > 0 ? { verses: snapshot.liveVerses } : {},
+      )
+    },
+    [
+      setVersion,
+      setPresentation,
+      background,
+      restoreQueue,
+      setLiveVerses,
+      writeToOutput,
+    ],
+  )
+
+  // Resolve each panel's background by its first slide's kind (default when
+  // empty or showing media). The popover/settings preview operate on default.
+  const previewBackground = background.resolveTarget(previewVerses[0]?.kind)
+  const liveBackground = background.resolveTarget(liveVerses[0]?.kind)
+  const defaultBackground = background.resolveTarget(undefined)
+
   useOperatorKeyboardShortcuts({
     mode,
     selectedVerse,
@@ -231,11 +283,16 @@ export default function OperatorPage() {
         queueCursor={queueCursor}
         onQueuePreviewAt={queuePreviewAt}
         onQueueProjectAt={queueGoto}
+        onQueueTapReference={(reference) => {
+          setMode("bible")
+          goToReference(reference)
+        }}
         onQueueRemove={queueRemove}
         onQueueReorder={queueReorder}
         onQueuePrev={queuePrev}
         onQueueNext={queueNext}
         onClearQueue={clearQueue}
+        onOpenShows={() => setShowsOpen(true)}
       />
 
       <main className="flex-1 min-w-0 h-full overflow-hidden">
@@ -268,6 +325,7 @@ export default function OperatorPage() {
             savedNotes={savedNotes}
             activeNoteId={activeNoteId}
             newSlideId={newSlideId}
+            folders={noteFolders}
             liveVerses={liveVerses}
             onDeckTitleChange={setDeckTitle}
             onSlideChange={updateSlide}
@@ -277,6 +335,10 @@ export default function OperatorPage() {
             onSelectNote={selectNote}
             onNewNote={newNote}
             onDeleteNote={deleteNote}
+            onCreateFolder={createNoteFolder}
+            onRenameFolder={renameNoteFolder}
+            onDeleteFolder={deleteNoteFolder}
+            onMoveNoteToFolder={moveNoteToFolder}
             previewSlide={previewSlide}
             projectSlide={projectSlide}
             addToQueue={addToQueue}
@@ -311,6 +373,7 @@ export default function OperatorPage() {
             onPreview={handlePreviewMedia}
             onProject={handleProjectMedia}
             onPrepare={prepareMedia}
+            onSetBackground={setMediaAsBackground}
           />
         )}
         {mode === "dictionary" && (
@@ -334,13 +397,15 @@ export default function OperatorPage() {
         presentation={presentation}
         onPresentationChange={setPresentation}
         version={version}
-        backgroundColor={backgroundColor}
-        onBackgroundColorChange={setBackgroundColor}
-        backgroundImage={backgroundImageUrl}
-        backgroundKind={backgroundKind}
-        onUploadBackground={handleBackgroundUpload}
-        onClearBackground={clearBackgroundImage}
-        onResetBackground={resetBackground}
+        previewBackground={previewBackground}
+        liveBackground={liveBackground}
+        defaultBackground={defaultBackground}
+        backgroundTargets={background.resolvedTargets}
+        onLayerColorChange={background.setLayerColor}
+        onUploadLayerImage={background.uploadLayerImage}
+        onClearLayerImage={background.clearLayerImage}
+        onResetLayer={background.resetLayer}
+        onResetAllBackgrounds={background.resetAllBackgrounds}
         themeLoaded={themeLoaded}
         previewContentRef={previewContentRef}
         onGoLive={goLive}
@@ -379,6 +444,13 @@ export default function OperatorPage() {
         onDefinePreview={previewDefinition}
         onDefineProject={projectDefinition}
         onDefineQueue={queueDefinition}
+      />
+
+      <ShowsLibrary
+        open={showsOpen}
+        onOpenChange={setShowsOpen}
+        captureSnapshot={captureSnapshot}
+        restoreSnapshot={restoreSnapshot}
       />
     </div>
   )

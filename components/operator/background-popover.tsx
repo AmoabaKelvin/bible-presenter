@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { HexColorPicker } from "react-colorful"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Image as ImageIcon, RotateCcw, X } from "lucide-react"
+import type { BackgroundTarget } from "@/lib/background-config"
+import type { ResolvedBackground } from "@/hooks/use-operator-background"
 
 const PRESETS = [
   { value: "#000000", label: "Black" },
@@ -25,30 +27,71 @@ const PRESETS = [
   { value: "#0d1b2a", label: "Deep" },
 ]
 
+// A resolved view of each target (effective color/url/kind + whether the
+// per-type slot is an explicit override vs inheriting the default).
+export type ResolvedTargets = Record<
+  BackgroundTarget,
+  ResolvedBackground & { overridden: boolean }
+>
+
+const TARGET_TABS: { value: BackgroundTarget; label: string }[] = [
+  { value: "default", label: "Default" },
+  { value: "scripture", label: "Scripture" },
+  { value: "song", label: "Songs" },
+  { value: "note", label: "Notes" },
+  { value: "definition", label: "Dictionary" },
+]
+
 interface BackgroundPopoverProps {
-  backgroundColor: string
-  backgroundImage: string | null
-  backgroundKind: "image" | "video" | null
-  onColorChange: (c: string) => void
-  onUploadImage: (file: File) => void
-  onClearImage: () => void
-  onReset: () => void
+  targets: ResolvedTargets
+  onColorChange: (target: BackgroundTarget, color: string) => void
+  onUploadImage: (target: BackgroundTarget, file: File) => void
+  onClearImage: (target: BackgroundTarget) => void
+  onResetLayer: (target: BackgroundTarget) => void
+  onResetAll: () => void
+}
+
+function Swatch({ resolved }: { resolved: ResolvedBackground }) {
+  if (resolved.url && resolved.kind === "video") {
+    return (
+      <video
+        src={resolved.url}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="size-4 rounded-sm border border-border object-cover"
+      />
+    )
+  }
+  return (
+    <div
+      className="size-4 rounded-sm border border-border"
+      style={{
+        backgroundColor: resolved.url ? undefined : resolved.color,
+        backgroundImage: resolved.url ? `url(${resolved.url})` : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    />
+  )
 }
 
 export function BackgroundPopover({
-  backgroundColor,
-  backgroundImage,
-  backgroundKind,
+  targets,
   onColorChange,
   onUploadImage,
   onClearImage,
-  onReset,
+  onResetLayer,
+  onResetAll,
 }: BackgroundPopoverProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [target, setTarget] = useState<BackgroundTarget>("default")
+  const active = targets[target]
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) onUploadImage(file)
+    if (file) onUploadImage(target, file)
     e.target.value = ""
   }
 
@@ -58,26 +101,7 @@ export function BackgroundPopover({
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-              {backgroundImage && backgroundKind === "video" ? (
-                <video
-                  src={backgroundImage}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="size-4 rounded-sm border border-border object-cover"
-                />
-              ) : (
-                <div
-                  className="size-4 rounded-sm border border-border"
-                  style={{
-                    backgroundColor: backgroundImage ? undefined : backgroundColor,
-                    backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                />
-              )}
+              <Swatch resolved={targets.default} />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
@@ -91,18 +115,66 @@ export function BackgroundPopover({
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-xs text-muted-foreground"
-            onClick={onReset}
+            onClick={onResetAll}
           >
             <RotateCcw className="size-3 mr-1" />
-            Reset
+            Reset all
           </Button>
         </div>
 
-        {backgroundImage && (
+        {/* Target selector — each type inherits Default unless overridden. */}
+        <div className="grid grid-cols-5 gap-1 mb-3">
+          {TARGET_TABS.map((tab) => {
+            const resolved = targets[tab.value]
+            const isActive = target === tab.value
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setTarget(tab.value)}
+                className={`flex flex-col items-center gap-1 rounded-sm border px-1 py-1.5 text-[10px] transition-colors ${
+                  isActive
+                    ? "border-foreground bg-accent"
+                    : "border-border text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                }`}
+                title={tab.label}
+              >
+                <span className="relative">
+                  <Swatch resolved={resolved} />
+                  {tab.value !== "default" && !resolved.overridden && (
+                    <span className="absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full bg-muted-foreground/60 ring-1 ring-card" />
+                  )}
+                </span>
+                <span className="truncate w-full text-center leading-none">{tab.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] text-muted-foreground">
+            {target === "default"
+              ? "Applies everywhere unless a type overrides it."
+              : active.overridden
+                ? "Overriding the default for this type."
+                : "Inheriting the default."}
+          </span>
+          {target !== "default" && active.overridden && (
+            <button
+              type="button"
+              onClick={() => onResetLayer(target)}
+              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              Inherit
+            </button>
+          )}
+        </div>
+
+        {active.url && (
           <div className="mb-3 relative">
-            {backgroundKind === "video" ? (
+            {active.kind === "video" ? (
               <video
-                src={backgroundImage}
+                src={active.url}
                 autoPlay
                 loop
                 muted
@@ -112,14 +184,14 @@ export function BackgroundPopover({
             ) : (
               <div
                 className="w-full h-20 rounded-md border border-border bg-cover bg-center"
-                style={{ backgroundImage: `url(${backgroundImage})` }}
+                style={{ backgroundImage: `url(${active.url})` }}
               />
             )}
             <Button
               variant="secondary"
               size="sm"
               className="absolute top-1 right-1 h-6 px-2 text-xs"
-              onClick={() => onClearImage()}
+              onClick={() => onClearImage(target)}
             >
               <X className="size-3 mr-1" />
               Remove
@@ -129,11 +201,8 @@ export function BackgroundPopover({
 
         <div className="mb-3 [&_.react-colorful]:w-full [&_.react-colorful]:h-32 [&_.react-colorful__saturation]:rounded-md [&_.react-colorful__hue]:h-3 [&_.react-colorful__hue]:rounded-md [&_.react-colorful__hue]:mt-2">
           <HexColorPicker
-            color={backgroundColor}
-            onChange={(c) => {
-              onColorChange(c)
-              onClearImage()
-            }}
+            color={active.color}
+            onChange={(c) => onColorChange(target, c)}
           />
         </div>
 
@@ -143,13 +212,10 @@ export function BackgroundPopover({
               key={p.value}
               type="button"
               title={p.label}
-              onClick={() => {
-                onColorChange(p.value)
-                onClearImage()
-              }}
+              onClick={() => onColorChange(target, p.value)}
               className={`h-7 w-full rounded-sm border transition-all ${
-                !backgroundImage &&
-                backgroundColor.toUpperCase() === p.value.toUpperCase()
+                !active.url &&
+                active.color.toUpperCase() === p.value.toUpperCase()
                   ? "ring-2 ring-foreground border-foreground"
                   : "border-border hover:border-muted-foreground"
               }`}
@@ -161,16 +227,13 @@ export function BackgroundPopover({
         <div className="flex items-center gap-2 mb-2">
           <div
             className="size-7 rounded-sm border border-border shrink-0"
-            style={{ backgroundColor }}
+            style={{ backgroundColor: active.color }}
           />
           <Input
-            value={backgroundColor}
+            value={active.color}
             onChange={(e) => {
               const v = e.target.value
-              if (/^#([0-9A-Fa-f]{0,6})$/.test(v)) {
-                onColorChange(v)
-                onClearImage()
-              }
+              if (/^#([0-9A-Fa-f]{0,6})$/.test(v)) onColorChange(target, v)
             }}
             className="h-7 text-xs font-mono"
           />

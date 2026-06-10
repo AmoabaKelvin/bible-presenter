@@ -1,6 +1,6 @@
 "use client"
 
-import { Book, FileText, Music, Image as ImageIcon, BookA } from "lucide-react"
+import { Book, FileText, Music, Image as ImageIcon, BookA, Layers } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
 import { QueuePane } from "./queue-pane"
 import { RecentSection } from "./recent-section"
@@ -18,11 +18,13 @@ interface LeftRailProps {
   queueCursor: number
   onQueuePreviewAt: (idx: number) => void
   onQueueProjectAt: (idx: number) => void
+  onQueueTapReference: (reference: string) => void
   onQueueRemove: (id: string) => void
   onQueueReorder: (from: number, to: number) => void
   onQueuePrev: () => void
   onQueueNext: () => void
   onClearQueue: () => void
+  onOpenShows: () => void
 }
 
 const MODES: { id: Mode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -43,11 +45,13 @@ export function LeftRail({
   queueCursor,
   onQueuePreviewAt,
   onQueueProjectAt,
+  onQueueTapReference,
   onQueueRemove,
   onQueueReorder,
   onQueuePrev,
   onQueueNext,
   onClearQueue,
+  onOpenShows,
 }: LeftRailProps) {
   return (
     <aside className="w-[320px] shrink-0 h-full border-r border-border bg-card/30 flex flex-col">
@@ -80,6 +84,15 @@ export function LeftRail({
             )
           })}
         </ul>
+        <div className="mt-1 pt-1.5 border-t border-border/60">
+          <button
+            onClick={onOpenShows}
+            className="w-full flex items-center gap-2.5 px-2.5 h-9 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          >
+            <Layers className="size-4" />
+            <span>Shows</span>
+          </button>
+        </div>
       </nav>
 
       <QueuePane
@@ -87,6 +100,7 @@ export function LeftRail({
         queueCursor={queueCursor}
         onPreviewAt={onQueuePreviewAt}
         onProjectAt={onQueueProjectAt}
+        onTapReference={onQueueTapReference}
         onRemove={onQueueRemove}
         onReorder={onQueueReorder}
         onPrev={onQueuePrev}

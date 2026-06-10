@@ -36,10 +36,12 @@ import { useGoogleFont } from "@/hooks/use-google-font"
 import { GOOGLE_FONTS, loadGoogleFontCatalog, searchGoogleFonts } from "@/lib/google-fonts"
 import {
   DEFAULT_PRESENTATION,
+  FONT_SCALE_BOUNDS,
   MARGIN_X_BOUNDS,
   MARGIN_Y_BOUNDS,
   fontFamilyCss,
   type PresentationSettings,
+  type ReferencePosition,
   type ReferenceWeight,
   type ScriptureWeight,
   type SlideAlignment,
@@ -81,6 +83,11 @@ const REFERENCE_WEIGHTS: { value: ReferenceWeight; label: string }[] = [
   { value: "regular", label: "Regular" },
   { value: "semibold", label: "Semibold" },
   { value: "bold", label: "Bold" },
+]
+
+const REFERENCE_POSITIONS: { value: ReferencePosition; label: string }[] = [
+  { value: "above", label: "Above" },
+  { value: "below", label: "Below" },
 ]
 
 interface SegmentedProps<T extends string> {
@@ -153,9 +160,10 @@ function MarginRow({ label, value, bounds, onChange }: MarginRowProps) {
 interface FontPickerProps {
   value: string
   onChange: (family: string) => void
+  defaultLabel?: string
 }
 
-function FontPicker({ value, onChange }: FontPickerProps) {
+function FontPicker({ value, onChange, defaultLabel = "Default (editorial serif)" }: FontPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   // Starts as the bundled curated list (instant, offline-safe); swapped for the
@@ -192,7 +200,7 @@ function FontPicker({ value, onChange }: FontPickerProps) {
           <span className="flex items-center gap-2 min-w-0">
             <Type className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate" style={{ fontFamily: fontFamilyCss(value) }}>
-              {value || "Default (editorial serif)"}
+              {value || defaultLabel}
             </span>
           </span>
           <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" />
@@ -218,7 +226,7 @@ function FontPicker({ value, onChange }: FontPickerProps) {
                 }}
               >
                 <Check className={`size-3.5 ${value ? "opacity-0" : "opacity-100"}`} />
-                Default (editorial serif)
+                {defaultLabel}
               </CommandItem>
               {results.map((family) => (
                 <CommandItem
@@ -260,9 +268,10 @@ export function PresentationSettingsDialog({
   backgroundKind,
   version,
 }: PresentationSettingsDialogProps) {
-  // Stream the chosen font into the operator window so the live preview below
-  // renders in it immediately, before the page-level loader catches up.
+  // Stream the chosen fonts into the operator window so the live preview below
+  // renders in them immediately, before the page-level loader catches up.
   useGoogleFont(settings.fontFamily)
+  useGoogleFont(settings.referenceFontFamily)
 
   const update = <K extends keyof PresentationSettings>(
     key: K,
@@ -314,6 +323,22 @@ export function PresentationSettingsDialog({
               <FontPicker value={settings.fontFamily} onChange={(v) => update("fontFamily", v)} />
             </Field>
 
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="eyebrow text-muted-foreground">Font size</span>
+                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                  {Math.round(settings.fontScale * 100)}%
+                </span>
+              </div>
+              <Slider
+                min={FONT_SCALE_BOUNDS.min}
+                max={FONT_SCALE_BOUNDS.max}
+                step={FONT_SCALE_BOUNDS.step}
+                value={[settings.fontScale]}
+                onValueChange={([v]) => update("fontScale", v)}
+              />
+            </div>
+
             <Field label="Letter case">
               <Segmented
                 value={settings.textCase}
@@ -335,6 +360,22 @@ export function PresentationSettingsDialog({
                 value={settings.referenceWeight}
                 options={REFERENCE_WEIGHTS}
                 onChange={(v) => update("referenceWeight", v)}
+              />
+            </Field>
+
+            <Field label="Reference position">
+              <Segmented
+                value={settings.referencePosition}
+                options={REFERENCE_POSITIONS}
+                onChange={(v) => update("referencePosition", v)}
+              />
+            </Field>
+
+            <Field label="Reference font">
+              <FontPicker
+                value={settings.referenceFontFamily}
+                onChange={(v) => update("referenceFontFamily", v)}
+                defaultLabel="Same as scripture font"
               />
             </Field>
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -7,9 +8,11 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  GripVertical,
   X,
 } from "lucide-react"
 import type { SelectedVerse } from "@/components/slide-stage"
+import { parseReference } from "@/lib/scripture-search"
 
 function stripHtml(s: string) {
   if (typeof window === "undefined") return s.replace(/<[^>]+>/g, "")
@@ -23,6 +26,7 @@ interface QueuePaneProps {
   queueCursor: number
   onPreviewAt: (idx: number) => void
   onProjectAt: (idx: number) => void
+  onTapReference: (reference: string) => void
   onRemove: (id: string) => void
   onReorder: (from: number, to: number) => void
   onPrev: () => void
@@ -30,11 +34,20 @@ interface QueuePaneProps {
   onClear: () => void
 }
 
+// A queue item should drive the bible reader only when it is a scripture cue
+// with a single, parseable chapter:verse reference (parseReference rejects
+// ranges and notes/songs/definitions).
+function scriptureReference(v: SelectedVerse): string | null {
+  if (v.kind !== "scripture") return null
+  return v.reference && parseReference(v.reference) ? v.reference : null
+}
+
 export function QueuePane({
   queue,
   queueCursor,
   onPreviewAt,
   onProjectAt,
+  onTapReference,
   onRemove,
   onReorder,
   onPrev,
@@ -43,6 +56,23 @@ export function QueuePane({
 }: QueuePaneProps) {
   const hasQueue = queue.length > 0
   const cursorValid = queueCursor >= 0 && queueCursor < queue.length
+
+  // Drag-and-drop reordering state. `dragIndex` is the row being dragged,
+  // `overIndex` shows the drop indicator. `draggedRef` guards the click that
+  // fires after a drop so a drag never previews/navigates.
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+  const draggedRef = useRef(false)
+
+  const handleTap = (i: number) => {
+    if (draggedRef.current) {
+      draggedRef.current = false
+      return
+    }
+    onPreviewAt(i)
+    const reference = scriptureReference(queue[i])
+    if (reference) onTapReference(reference)
+  }
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -103,12 +133,38 @@ export function QueuePane({
           <ul className="px-2 py-2 space-y-0.5">
             {queue.map((v, i) => {
               const isCursor = i === queueCursor
+              const isDragging = i === dragIndex
+              const showDropBefore = overIndex === i && dragIndex !== null && dragIndex !== i
               return (
                 <li
                   key={v.id}
-                  onClick={() => onPreviewAt(i)}
+                  draggable
+                  onClick={() => handleTap(i)}
                   onDoubleClick={() => onProjectAt(i)}
+                  onDragStart={(e) => {
+                    draggedRef.current = true
+                    setDragIndex(i)
+                    e.dataTransfer.effectAllowed = "move"
+                  }}
+                  onDragOver={(e) => {
+                    if (dragIndex === null) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = "move"
+                    if (overIndex !== i) setOverIndex(i)
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (dragIndex !== null && dragIndex !== i) onReorder(dragIndex, i)
+                    setDragIndex(null)
+                    setOverIndex(null)
+                  }}
+                  onDragEnd={() => {
+                    setDragIndex(null)
+                    setOverIndex(null)
+                  }}
                   className={`group relative flex items-start gap-2 px-2.5 py-2 rounded-md cursor-pointer transition-colors ${
+                    showDropBefore ? "before:absolute before:-top-px before:left-1 before:right-1 before:h-0.5 before:rounded-full before:bg-[color:var(--live)]" : ""
+                  } ${isDragging ? "opacity-50" : ""} ${
                     isCursor ? "bg-foreground/[0.06]" : "hover:bg-accent/60"
                   }`}
                 >
@@ -117,6 +173,10 @@ export function QueuePane({
                     className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full transition-colors ${
                       isCursor ? "bg-[color:var(--live)]" : "bg-transparent"
                     }`}
+                  />
+                  <GripVertical
+                    aria-hidden
+                    className="size-3.5 text-muted-foreground/40 shrink-0 mt-px cursor-grab opacity-0 group-hover:opacity-100 transition-opacity"
                   />
                   <span className="font-mono text-[10px] text-muted-foreground w-5 tabular-nums pt-0.5 shrink-0">
                     {String(i + 1).padStart(2, "0")}

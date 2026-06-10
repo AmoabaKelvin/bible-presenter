@@ -43,6 +43,7 @@ export function normalizeNote(raw: StoredNote): SavedNote {
     title: raw.title ?? "",
     createdAt: raw.createdAt ?? now,
     updatedAt: raw.updatedAt ?? now,
+    folderId: raw.folderId,
   }
   if (Array.isArray(raw.slides)) {
     return {

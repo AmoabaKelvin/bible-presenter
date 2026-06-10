@@ -1,12 +1,14 @@
 "use client"
 
 import type { SelectedVerse, FontSize } from "@/components/slide-stage"
-import { BackgroundPopover } from "./background-popover"
+import { BackgroundPopover, type ResolvedTargets } from "./background-popover"
 import { MusicPane } from "./music-pane"
 import { SlideLivePanel } from "./slide-live-panel"
 import { SlidePreviewPanel } from "./slide-preview-panel"
 import { PresentationSettingsDialog } from "./presentation-settings-dialog"
 import type { PresentationSettings } from "@/lib/presentation-settings"
+import type { BackgroundTarget } from "@/lib/background-config"
+import type { ResolvedBackground } from "@/hooks/use-operator-background"
 import type { RefObject } from "react"
 import type { MusicState } from "@/lib/music-protocol"
 import type { SpotifyAuthStatus } from "@/lib/spotify-music"
@@ -22,13 +24,17 @@ interface RightRailProps {
   presentation: PresentationSettings
   onPresentationChange: (s: PresentationSettings) => void
   version: string
-  backgroundColor: string
-  onBackgroundColorChange: (c: string) => void
-  backgroundImage: string | null
-  backgroundKind: "image" | "video" | null
-  onUploadBackground: (file: File) => void
-  onClearBackground: () => void
-  onResetBackground: () => void
+  // Resolved backgrounds for each panel (by their first slide's kind) and the
+  // per-type controls.
+  previewBackground: ResolvedBackground
+  liveBackground: ResolvedBackground
+  defaultBackground: ResolvedBackground
+  backgroundTargets: ResolvedTargets
+  onLayerColorChange: (target: BackgroundTarget, color: string) => void
+  onUploadLayerImage: (target: BackgroundTarget, file: File) => void
+  onClearLayerImage: (target: BackgroundTarget) => void
+  onResetLayer: (target: BackgroundTarget) => void
+  onResetAllBackgrounds: () => void
   themeLoaded: boolean
   previewContentRef: RefObject<HTMLDivElement | null>
   onGoLive: () => void
@@ -81,13 +87,15 @@ export function RightRail({
   presentation,
   onPresentationChange,
   version,
-  backgroundColor,
-  onBackgroundColorChange,
-  backgroundImage,
-  backgroundKind,
-  onUploadBackground,
-  onClearBackground,
-  onResetBackground,
+  previewBackground,
+  liveBackground,
+  defaultBackground,
+  backgroundTargets,
+  onLayerColorChange,
+  onUploadLayerImage,
+  onClearLayerImage,
+  onResetLayer,
+  onResetAllBackgrounds,
   themeLoaded,
   previewContentRef,
   onGoLive,
@@ -117,7 +125,9 @@ export function RightRail({
   onMusicVolume,
   onMusicStop,
 }: RightRailProps) {
-  const bg = themeLoaded ? backgroundColor : "#0a0a0a"
+  // The settings-dialog preview renders a sample scripture verse, so it shows
+  // the default layer. Fall back to a neutral color until persistence loads.
+  const settingsBgColor = themeLoaded ? defaultBackground.color : "#0a0a0a"
 
   return (
     <aside className="w-[500px] shrink-0 h-full border-l border-border bg-card/30 flex flex-col overflow-hidden">
@@ -143,20 +153,19 @@ export function RightRail({
             ))}
           </div>
           <BackgroundPopover
-            backgroundColor={backgroundColor}
-            backgroundImage={backgroundImage}
-            backgroundKind={backgroundKind}
-            onColorChange={onBackgroundColorChange}
-            onUploadImage={onUploadBackground}
-            onClearImage={onClearBackground}
-            onReset={onResetBackground}
+            targets={backgroundTargets}
+            onColorChange={onLayerColorChange}
+            onUploadImage={onUploadLayerImage}
+            onClearImage={onClearLayerImage}
+            onResetLayer={onResetLayer}
+            onResetAll={onResetAllBackgrounds}
           />
           <PresentationSettingsDialog
             settings={presentation}
             onChange={onPresentationChange}
-            backgroundColor={bg}
-            backgroundImage={backgroundImage}
-            backgroundKind={backgroundKind}
+            backgroundColor={settingsBgColor}
+            backgroundImage={defaultBackground.url}
+            backgroundKind={defaultBackground.kind}
             version={version}
           />
         </div>
@@ -168,9 +177,9 @@ export function RightRail({
         fontSize={fontSize}
         presentation={presentation}
         version={version}
-        backgroundColor={bg}
-        backgroundImage={backgroundImage}
-        backgroundKind={backgroundKind}
+        backgroundColor={themeLoaded ? previewBackground.color : "#0a0a0a"}
+        backgroundImage={previewBackground.url}
+        backgroundKind={previewBackground.kind}
         contentRef={previewContentRef}
         onGoLive={onGoLive}
         onApplyHighlight={onApplyHighlight}
@@ -185,9 +194,9 @@ export function RightRail({
         fontSize={fontSize}
         presentation={presentation}
         version={version}
-        backgroundColor={bg}
-        backgroundImage={backgroundImage}
-        backgroundKind={backgroundKind}
+        backgroundColor={themeLoaded ? liveBackground.color : "#0a0a0a"}
+        backgroundImage={liveBackground.url}
+        backgroundKind={liveBackground.kind}
         onOpenOutput={onOpenOutput}
         onClearLive={onClearLive}
       />

@@ -55,6 +55,7 @@ type UseOperatorProjectionResult = {
   queuePrev: () => void
   queueNext: () => void
   clearQueue: () => void
+  restoreQueue: (items: SelectedVerse[], cursor: number) => void
   applyHighlight: (color: string) => void
   clearHighlights: () => void
 }
@@ -119,6 +120,7 @@ export function useOperatorProjection({
     queuePrev,
     queueNext,
     clearQueue,
+    restoreQueue,
   } = useOperatorQueue({
     previewVerses,
     setPreviewVerses,
@@ -157,6 +159,7 @@ export function useOperatorProjection({
     queuePrev,
     queueNext,
     clearQueue,
+    restoreQueue,
     applyHighlight,
     clearHighlights,
   }

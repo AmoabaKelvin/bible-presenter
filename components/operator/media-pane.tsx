@@ -3,9 +3,29 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Upload, Trash2, Radio, Eye, ImageOff } from "lucide-react"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { Upload, Trash2, Radio, Eye, ImageOff, Image as ImageIcon } from "lucide-react"
 import type { MediaItem } from "./types"
+import type { BackgroundTarget } from "@/lib/background-config"
 import { resolveImageUrl } from "@/lib/image-store"
+
+const BACKGROUND_TARGETS: { value: BackgroundTarget; label: string }[] = [
+  { value: "default", label: "Default" },
+  { value: "scripture", label: "Scripture" },
+  { value: "song", label: "Songs" },
+  { value: "note", label: "Notes" },
+  { value: "definition", label: "Dictionary" },
+]
 
 const TILE_MIN_WIDTH = 180
 const TILE_GAP = 12
@@ -20,6 +40,7 @@ interface MediaPaneProps {
   onPreview: (item: MediaItem) => void
   onProject: (item: MediaItem) => void
   onPrepare: (item: MediaItem) => void
+  onSetBackground: (item: MediaItem, target: BackgroundTarget) => void
 }
 
 export function MediaPane({
@@ -29,6 +50,7 @@ export function MediaPane({
   onPreview,
   onProject,
   onPrepare,
+  onSetBackground,
 }: MediaPaneProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -162,6 +184,7 @@ export function MediaPane({
                     onPreview={onPreview}
                     onProject={onProject}
                     onPrepare={onPrepare}
+                    onSetBackground={onSetBackground}
                   />
                 ))}
               </div>
@@ -180,6 +203,7 @@ const MediaTile = memo(function MediaTile({
   onPreview,
   onProject,
   onPrepare,
+  onSetBackground,
 }: {
   item: MediaItem
   index: number
@@ -187,6 +211,7 @@ const MediaTile = memo(function MediaTile({
   onPreview: (item: MediaItem) => void
   onProject: (item: MediaItem) => void
   onPrepare: (item: MediaItem) => void
+  onSetBackground: (item: MediaItem, target: BackgroundTarget) => void
 }) {
   const [url, setUrl] = useState<string | null>(null)
 
@@ -210,30 +235,68 @@ const MediaTile = memo(function MediaTile({
       className="group relative aspect-video rounded-md overflow-hidden border border-border bg-card"
       style={{ contentVisibility: "auto", containIntrinsicSize: "180px 101px" }}
     >
-      <button
-        onClick={handlePreview}
-        onDoubleClick={handleProject}
-        onFocus={handlePrepare}
-        onMouseEnter={handlePrepare}
-        onPointerDown={handlePrepare}
-        className="absolute inset-0"
-        aria-label={`Preview ${item.name}`}
-      >
-        {url ? (
-          <img
-            src={url}
-            alt={item.name}
-            loading="lazy"
-            decoding="async"
-            fetchPriority={index < 24 ? "high" : "auto"}
-            className="absolute inset-0 size-full object-cover transition-transform group-hover:scale-[1.02]"
-          />
-        ) : (
-          <span className="absolute inset-0 grid place-items-center text-muted-foreground">
-            <ImageOff className="size-4" />
-          </span>
-        )}
-      </button>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <button
+            onClick={handlePreview}
+            onDoubleClick={handleProject}
+            onFocus={handlePrepare}
+            onMouseEnter={handlePrepare}
+            onPointerDown={handlePrepare}
+            className="absolute inset-0"
+            aria-label={`Preview ${item.name}`}
+          >
+            {url ? (
+              <img
+                src={url}
+                alt={item.name}
+                loading="lazy"
+                decoding="async"
+                fetchPriority={index < 24 ? "high" : "auto"}
+                className="absolute inset-0 size-full object-cover transition-transform group-hover:scale-[1.02]"
+              />
+            ) : (
+              <span className="absolute inset-0 grid place-items-center text-muted-foreground">
+                <ImageOff className="size-4" />
+              </span>
+            )}
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-48">
+          <ContextMenuItem onSelect={handlePreview}>
+            <Eye className="size-3.5" />
+            Preview
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleProject}>
+            <Radio className="size-3.5" />
+            Go live
+          </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <ImageIcon className="size-3.5" />
+              Set as background
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              <ContextMenuLabel className="text-[11px] text-muted-foreground">
+                Apply to
+              </ContextMenuLabel>
+              {BACKGROUND_TARGETS.map((target) => (
+                <ContextMenuItem
+                  key={target.value}
+                  onSelect={() => onSetBackground(item, target.value)}
+                >
+                  {target.label}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+          <ContextMenuSeparator />
+          <ContextMenuItem variant="destructive" onSelect={handleDelete}>
+            <Trash2 className="size-3.5" />
+            Remove
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <div className="absolute inset-x-0 bottom-0 px-2 py-1.5 bg-gradient-to-t from-black/70 via-black/30 to-transparent flex items-end justify-between gap-2">
         <span className="text-[11px] text-white truncate font-mono">{item.name}</span>

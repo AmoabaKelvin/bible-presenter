@@ -13,6 +13,7 @@ export default function SlideshowPage() {
   const { data, bgImageUrl, bgKind, mediaImageUrl } = useSlideshowProjection()
   const { needsAudioGesture, enableAudio } = useSlideshowMusicPlayer()
   useGoogleFont(data.presentation?.fontFamily)
+  useGoogleFont(data.presentation?.referenceFontFamily)
 
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
   // Keep the projector awake the whole time the output is open.

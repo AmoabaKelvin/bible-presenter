@@ -5,6 +5,7 @@ import type { VerseData } from "@/components/operator/types"
 import { resolveBackgroundMedia, resolveImageUrl, type BackgroundMediaKind } from "@/lib/image-store"
 import { readLegacyString, readPersisted } from "@/lib/persistence"
 import { mergePresentation, type PresentationSettings } from "@/lib/presentation-settings"
+import { normalizeBackgroundConfig, resolveLayer } from "@/lib/background-config"
 
 const DEFAULT_DATA: VerseData = {
   verses: [],
@@ -12,12 +13,6 @@ const DEFAULT_DATA: VerseData = {
   darkMode: true,
   version: "KJV",
   backgroundColor: "#000000",
-}
-
-type BackgroundSettings = {
-  color: string
-  imageId: string | null
-  kind: BackgroundMediaKind | null
 }
 
 function updateFavicon(verseRef?: string) {
@@ -57,7 +52,7 @@ function firstSlideTitle(data: VerseData) {
 }
 
 function applyStoredOverrides(parsed: VerseData) {
-  const background = readPersisted<BackgroundSettings>("background", {
+  const stored = readPersisted<unknown>("background", {
     legacy: {
       keys: [
         "biblePresenterBackgroundColor",
@@ -76,11 +71,16 @@ function applyStoredOverrides(parsed: VerseData) {
       },
     },
   })
+  // Pick the layer for the live slide's kind so a per-type override shows for
+  // that kind only. Reads happen here (not in render) so background changes
+  // reflow the live slide without re-projecting.
+  const config = normalizeBackgroundConfig(stored)
+  const layer = resolveLayer(config, parsed.verses[0]?.kind)
   const presentation = readPersisted<PresentationSettings>("presentation")
   return {
     ...parsed,
-    backgroundColor: background?.color || parsed.backgroundColor,
-    backgroundImage: background?.imageId || undefined,
+    backgroundColor: layer.color || parsed.backgroundColor,
+    backgroundImage: layer.imageId || undefined,
     presentation: mergePresentation(presentation),
   }
 }

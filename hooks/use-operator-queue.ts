@@ -156,6 +156,14 @@ export function useOperatorQueue({
     setQueueCursor(-1)
   }, [])
 
+  // Replace the whole queue and cursor at once (used to restore a saved show).
+  // The persist effects above save the new values.
+  const restoreQueue = useCallback((items: SelectedVerse[], cursor: number) => {
+    setQueue(items)
+    const max = items.length - 1
+    setQueueCursor(items.length === 0 ? -1 : Math.min(Math.max(cursor, -1), max))
+  }, [])
+
   return {
     queue,
     queueCursor,
@@ -168,5 +176,6 @@ export function useOperatorQueue({
     queuePrev,
     queueNext,
     clearQueue,
+    restoreQueue,
   }
 }

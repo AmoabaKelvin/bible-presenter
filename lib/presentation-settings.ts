@@ -8,6 +8,8 @@ export type SlideTextCase = "default" | "uppercase"
 export type ScriptureWeight = "light" | "regular" | "semibold" | "bold"
 export type ReferenceWeight = "regular" | "semibold" | "bold"
 
+export type ReferencePosition = "above" | "below"
+
 export interface PresentationSettings {
   alignment: SlideAlignment
   // Empty string means the default editorial serif (Georgia/Times).
@@ -20,11 +22,20 @@ export interface PresentationSettings {
   // line length. Useful for TV/projector overscan.
   marginX: number
   marginY: number
+  // Multiplier applied to the fitted scripture/note sizes. The auto-fit keeps
+  // text inside the safe area at scale 1; scaling up clamps to the fit so the
+  // text never overflows the 1920×1080 canvas.
+  fontScale: number
+  // Where the scripture reference line sits relative to the verse text.
+  referencePosition: ReferencePosition
+  // Empty string inherits `fontFamily`. Lets the reference use its own face.
+  referenceFontFamily: string
 }
 
 // Bounds keep the text area from ever collapsing, whatever the user drags to.
 export const MARGIN_X_BOUNDS = { min: 0, max: 480, step: 4 }
 export const MARGIN_Y_BOUNDS = { min: 0, max: 360, step: 4 }
+export const FONT_SCALE_BOUNDS = { min: 0.6, max: 1.6, step: 0.05 }
 
 // Defaults reproduce the look the slides had before these settings existed:
 // centered, serif, normal case, regular body weight, bold reference. The
@@ -38,6 +49,14 @@ export const DEFAULT_PRESENTATION: PresentationSettings = {
   referenceWeight: "bold",
   marginX: 160,
   marginY: 120,
+  fontScale: 1,
+  referencePosition: "below",
+  referenceFontFamily: "",
+}
+
+export function clampFontScale(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_PRESENTATION.fontScale
+  return Math.min(FONT_SCALE_BOUNDS.max, Math.max(FONT_SCALE_BOUNDS.min, value))
 }
 
 export function clampMargin(value: number, bounds: { min: number; max: number }): number {
@@ -69,8 +88,8 @@ export const ALIGNMENT_CSS: Record<
 
 // The serif fallback chain keeps text readable while a Google font streams in,
 // and is what renders when offline (the family simply never loads).
-export function fontFamilyCss(family: string): string | undefined {
-  const trimmed = family.trim()
+export function fontFamilyCss(family: string | null | undefined): string | undefined {
+  const trimmed = family?.trim()
   if (!trimmed) return undefined
   return `"${trimmed}", Georgia, "Times New Roman", serif`
 }

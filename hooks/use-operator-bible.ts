@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } 
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
 import type { BibleBook } from "@/lib/bible-data"
-import type { ScriptureSearchResult } from "@/lib/scripture-search"
+import { parseReference, type ScriptureSearchResult } from "@/lib/scripture-search"
 import { useBibleChapter } from "@/hooks/use-bible-chapter"
 import { useBibleNavigation } from "@/hooks/use-bible-navigation"
 import { useBibleSearchActions } from "@/hooks/use-bible-search-actions"
@@ -44,6 +44,7 @@ type UseOperatorBibleResult = {
   ) => void
   handleJumpSelect: (book: BibleBook, chapter: number, verse: number) => void
   handleJumpProject: (book: BibleBook, chapter: number, verse: number) => void
+  goToReference: (reference: string) => void
   handleSelectVerse: (verse: number, shiftKey: boolean) => void
   handleDoubleClickVerse: (verse: number) => void
   stepSelectedVerse: (delta: number) => void
@@ -101,6 +102,17 @@ export function useOperatorBible({
   }, [selectedBook, selectedChapter])
 
   const handleReferenceChange = handleNavigationReferenceChange
+
+  // Drive the bible reader to a reference string (e.g. "John 3:16"), the same
+  // end state as typing it into the scripture search box. Unparseable refs and
+  // ranges (parseReference only matches a single chapter:verse) are no-ops.
+  const goToReference = useCallback(
+    (reference: string) => {
+      const parsed = parseReference(reference)
+      if (parsed) handleReferenceChange(parsed.book, parsed.chapter, parsed.verse)
+    },
+    [handleReferenceChange],
+  )
 
   const projectVerses = useCallback(
     (verses: SelectedVerse[], syncPreview: boolean) => {
@@ -166,6 +178,7 @@ export function useOperatorBible({
     handleReferenceChange,
     handleJumpSelect,
     handleJumpProject,
+    goToReference,
     handleSelectVerse,
     handleDoubleClickVerse,
     stepSelectedVerse,

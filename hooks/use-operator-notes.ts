@@ -1,11 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { NoteSlide, SavedNote } from "@/components/operator/types"
+import type { Folder, NoteSlide, SavedNote } from "@/components/operator/types"
 import { readLegacyJson, readPersisted, writePersisted } from "@/lib/persistence"
 import { emptySlide, newId, normalizeNote } from "@/lib/note-slides"
 
 const NOTES_KEY = "biblePresenterSavedNotes"
+const FOLDERS_KEY = "noteFolders"
 const PERSIST_DEBOUNCE_MS = 400
 
 type StoredNote = Partial<SavedNote> & { body?: string }
@@ -16,6 +17,7 @@ type UseOperatorNotesResult = {
   activeNoteId: string | null
   // The most recently added slide, so the UI can animate it into view.
   newSlideId: string | null
+  folders: Folder[]
   setDeckTitle: (title: string) => void
   updateSlide: (slideId: string, patch: Partial<Omit<NoteSlide, "id">>) => void
   addSlide: (afterSlideId?: string) => void
@@ -24,16 +26,22 @@ type UseOperatorNotesResult = {
   selectNote: (note: SavedNote) => void
   newNote: () => void
   deleteNote: (id: string) => void
+  createFolder: (name: string) => void
+  renameFolder: (id: string, name: string) => void
+  deleteFolder: (id: string) => void
+  moveNoteToFolder: (noteId: string, folderId: string | null) => void
 }
 
 export function useOperatorNotes(): UseOperatorNotesResult {
   const [loaded, setLoaded] = useState(false)
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([])
+  const [folders, setFolders] = useState<Folder[]>([])
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [newSlideId, setNewSlideId] = useState<string | null>(null)
 
   // Load + migrate any persisted notes (legacy single-body notes become
-  // single-slide decks).
+  // single-slide decks). Folders live under their own key; notes predating
+  // folders simply have no folderId and render as Unfiled.
   useEffect(() => {
     try {
       const stored = readPersisted<StoredNote[]>("notes", {
@@ -41,6 +49,8 @@ export function useOperatorNotes(): UseOperatorNotesResult {
       })
       const migrated = stored ? stored.map(normalizeNote) : []
       setSavedNotes(migrated)
+      const storedFolders = readPersisted<Folder[]>(FOLDERS_KEY)
+      if (Array.isArray(storedFolders)) setFolders(storedFolders)
       const savedId = readPersisted<string | null>("workspace:notes:activeId")
       // Reopen the last-edited deck, or fall back to the most recent one.
       if (savedId && migrated.some((n) => n.id === savedId)) {
@@ -61,6 +71,11 @@ export function useOperatorNotes(): UseOperatorNotesResult {
     const handle = setTimeout(() => writePersisted("notes", savedNotes), PERSIST_DEBOUNCE_MS)
     return () => clearTimeout(handle)
   }, [savedNotes, loaded])
+
+  useEffect(() => {
+    if (!loaded) return
+    writePersisted(FOLDERS_KEY, folders)
+  }, [folders, loaded])
 
   useEffect(() => {
     if (!loaded) return
@@ -162,11 +177,41 @@ export function useOperatorNotes(): UseOperatorNotesResult {
     [],
   )
 
+  const createFolder = useCallback((name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const folder: Folder = { id: newId("folder"), name: trimmed, createdAt: Date.now() }
+    setFolders((prev) => [...prev, folder])
+  }, [])
+
+  const renameFolder = useCallback((id: string, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name: trimmed } : f)))
+  }, [])
+
+  // Removing a folder re-files its notes to Unfiled rather than deleting them.
+  const deleteFolder = useCallback((id: string) => {
+    setFolders((prev) => prev.filter((f) => f.id !== id))
+    setSavedNotes((prev) =>
+      prev.map((n) => (n.folderId === id ? { ...n, folderId: undefined } : n)),
+    )
+  }, [])
+
+  const moveNoteToFolder = useCallback((noteId: string, folderId: string | null) => {
+    setSavedNotes((prev) =>
+      prev.map((n) =>
+        n.id === noteId ? { ...n, folderId: folderId ?? undefined, updatedAt: Date.now() } : n,
+      ),
+    )
+  }, [])
+
   return {
     note,
     savedNotes,
     activeNoteId,
     newSlideId,
+    folders,
     setDeckTitle,
     updateSlide,
     addSlide,
@@ -175,5 +220,9 @@ export function useOperatorNotes(): UseOperatorNotesResult {
     selectNote,
     newNote,
     deleteNote,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    moveNoteToFolder,
   }
 }

@@ -3,7 +3,8 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react"
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { MediaItem } from "@/components/operator/types"
-import { resolveImageUrl, type BackgroundMediaKind } from "@/lib/image-store"
+import type { BackgroundTarget } from "@/lib/background-config"
+import { resolveImageUrl } from "@/lib/image-store"
 import { useMediaLibrary } from "@/hooks/use-media-library"
 import { useOperatorBackground } from "@/hooks/use-operator-background"
 
@@ -17,41 +18,15 @@ type UseOperatorMediaOptions = {
   writeToOutput: (payload: { verses?: SelectedVerse[]; mediaId?: string | null }) => void
 }
 
-type UseOperatorMediaResult = {
-  media: MediaItem[]
-  backgroundColor: string
-  setBackgroundColor: (color: string) => void
-  backgroundImageUrl: string | null
-  backgroundKind: BackgroundMediaKind | null
-  themeLoaded: boolean
-  handleMediaUpload: (file: File) => Promise<void>
-  deleteMedia: (id: string) => void
-  handlePreviewMedia: (item: MediaItem) => Promise<void>
-  handleProjectMedia: (item: MediaItem) => Promise<void>
-  prepareMedia: (item: MediaItem) => Promise<void>
-  handleBackgroundUpload: (file: File) => Promise<void>
-  clearBackgroundImage: () => void
-  resetBackground: () => void
-}
-
 export function useOperatorMedia({
   setPreviewVerses,
   setLiveVerses,
   setPreviewMedia,
   setLiveMedia,
   writeToOutput,
-}: UseOperatorMediaOptions): UseOperatorMediaResult {
+}: UseOperatorMediaOptions) {
   const { media, handleMediaUpload, deleteMedia, ensureStoredMediaItem } = useMediaLibrary()
-  const {
-    backgroundColor,
-    setBackgroundColor,
-    backgroundImageUrl,
-    backgroundKind,
-    themeLoaded,
-    handleBackgroundUpload,
-    clearBackgroundImage,
-    resetBackground,
-  } = useOperatorBackground()
+  const background = useOperatorBackground()
 
   const handlePreviewMedia = useCallback(
     async (item: MediaItem) => {
@@ -96,20 +71,27 @@ export function useOperatorMedia({
     [ensureStoredMediaItem],
   )
 
+  // Use a media-library item as a layer's background. Mirrors handlePreviewMedia:
+  // ensure the item has a durable IndexedDB id before pinning it.
+  const setMediaAsBackground = useCallback(
+    async (item: MediaItem, target: BackgroundTarget) => {
+      const storedItem = await ensureStoredMediaItem(item)
+      const ref = storedItem.imageId ?? storedItem.dataUrl ?? ""
+      if (!ref) return
+      await background.setLayerImage(target, ref)
+    },
+    [background, ensureStoredMediaItem],
+  )
+
   return {
     media,
-    backgroundColor,
-    setBackgroundColor,
-    backgroundImageUrl,
-    backgroundKind,
-    themeLoaded,
+    background,
+    themeLoaded: background.themeLoaded,
     handleMediaUpload,
     deleteMedia,
     handlePreviewMedia,
     handleProjectMedia,
     prepareMedia,
-    handleBackgroundUpload,
-    clearBackgroundImage,
-    resetBackground,
+    setMediaAsBackground,
   }
 }

@@ -1,73 +1,119 @@
 "use client"
 
-import { useMemo } from "react"
-import { PencilLine, Plus, Trash2 } from "lucide-react"
+import { useMemo, useState } from "react"
+import { FolderPlus, PencilLine, Plus } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { SavedNote } from "./types"
+import { FolderHeader, NoteRow } from "./note-folder-row"
+import type { Folder, SavedNote } from "./types"
 
 interface NotesListProps {
   notes: SavedNote[]
+  folders: Folder[]
   activeNoteId: string | null
   onSelectNote: (note: SavedNote) => void
   onNewNote: () => void
   onDeleteNote: (id: string) => void
-}
-
-function relativeTime(ts: number) {
-  const diff = Date.now() - ts
-  const minutes = Math.floor(diff / 60_000)
-  if (minutes < 1) return "just now"
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
-function stripMd(value: string | undefined | null) {
-  return (value ?? "").replace(/[*_#>`~-]/g, "").replace(/<[^>]+>/g, "").trim()
+  onCreateFolder: (name: string) => void
+  onRenameFolder: (id: string, name: string) => void
+  onDeleteFolder: (id: string) => void
+  onMoveNoteToFolder: (noteId: string, folderId: string | null) => void
 }
 
 export function NotesList({
   notes,
+  folders,
   activeNoteId,
   onSelectNote,
   onNewNote,
   onDeleteNote,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
+  onMoveNoteToFolder,
 }: NotesListProps) {
-  const sortedNotes = useMemo(
-    () => [...notes].sort((a, b) => b.updatedAt - a.updatedAt),
-    [notes],
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  const sortedFolders = useMemo(
+    () => [...folders].sort((a, b) => a.name.localeCompare(b.name)),
+    [folders],
   )
+
+  // Bucket notes by folder; unknown/absent ids land in Unfiled. Each bucket
+  // keeps the most-recently-updated note first.
+  const { byFolder, unfiled } = useMemo(() => {
+    const known = new Set(folders.map((f) => f.id))
+    const byFolder = new Map<string, SavedNote[]>()
+    const unfiled: SavedNote[] = []
+    for (const note of notes) {
+      if (note.folderId && known.has(note.folderId)) {
+        const bucket = byFolder.get(note.folderId) ?? []
+        bucket.push(note)
+        byFolder.set(note.folderId, bucket)
+      } else {
+        unfiled.push(note)
+      }
+    }
+    const byUpdated = (a: SavedNote, b: SavedNote) => b.updatedAt - a.updatedAt
+    byFolder.forEach((bucket) => bucket.sort(byUpdated))
+    unfiled.sort(byUpdated)
+    return { byFolder, unfiled }
+  }, [notes, folders])
+
+  const toggleFolder = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const addFolder = () => {
+    const name = window.prompt("New folder name")
+    if (name !== null) onCreateFolder(name)
+  }
 
   return (
     <aside className="w-[320px] shrink-0 border-r border-border flex flex-col h-full min-h-0 bg-card/20">
       <div className="h-14 shrink-0 px-4 border-b border-border flex items-center justify-between">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-medium">Notes</h2>
-          {sortedNotes.length > 0 && (
+          {notes.length > 0 && (
             <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
-              {sortedNotes.length}
+              {notes.length}
             </span>
           )}
         </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={onNewNote}
-              className="size-7 grid place-items-center rounded-md border border-border bg-background hover:bg-accent transition-colors"
-              aria-label="New note"
-            >
-              <Plus className="size-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">New note</TooltipContent>
-        </Tooltip>
+        <div className="flex items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={addFolder}
+                className="size-7 grid place-items-center rounded-md border border-border bg-background hover:bg-accent transition-colors"
+                aria-label="New folder"
+              >
+                <FolderPlus className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">New folder</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onNewNote}
+                className="size-7 grid place-items-center rounded-md border border-border bg-background hover:bg-accent transition-colors"
+                aria-label="New note"
+              >
+                <Plus className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">New note</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        {sortedNotes.length === 0 ? (
+        {notes.length === 0 && folders.length === 0 ? (
           <div className="px-5 py-10 text-center">
             <div className="size-9 rounded-full bg-accent grid place-items-center mx-auto mb-3">
               <PencilLine className="size-4 text-muted-foreground" />
@@ -77,64 +123,66 @@ export function NotesList({
             </p>
           </div>
         ) : (
-          <ul className="p-1.5 space-y-px">
-            {sortedNotes.map((note) => {
-              const active = note.id === activeNoteId
-              const preview = stripMd(note.slides?.[0]?.body)
-              const slideCount = note.slides?.length ?? 0
+          <div className="p-1.5 space-y-1">
+            {sortedFolders.map((folder) => {
+              const bucket = byFolder.get(folder.id) ?? []
+              const isCollapsed = collapsed.has(folder.id)
               return (
-                <li key={note.id}>
-                  <button
-                    onClick={() => onSelectNote(note)}
-                    className={`group relative w-full text-left pl-3 pr-2 py-2.5 rounded-lg transition-colors ${
-                      active ? "bg-accent" : "hover:bg-accent/50"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-full transition-colors ${
-                        active ? "bg-foreground" : "bg-transparent"
-                      }`}
-                    />
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`flex-1 min-w-0 truncate text-[13px] ${
-                          active ? "font-semibold" : "font-medium"
-                        }`}
-                      >
-                        {note.title.trim() || "Untitled note"}
-                      </span>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onDeleteNote(note.id)
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            onDeleteNote(note.id)
-                          }
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
-                        aria-label="Delete note"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </span>
-                    </div>
-                    <p className="text-[11.5px] text-muted-foreground line-clamp-1 mt-0.5">
-                      {preview || "Empty deck"}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground/60 font-mono mt-1">
-                      {slideCount} {slideCount === 1 ? "slide" : "slides"} · {relativeTime(note.updatedAt)}
-                    </p>
-                  </button>
-                </li>
+                <div key={folder.id}>
+                  <FolderHeader
+                    folder={folder}
+                    count={bucket.length}
+                    collapsed={isCollapsed}
+                    onToggle={() => toggleFolder(folder.id)}
+                    onRename={onRenameFolder}
+                    onDelete={onDeleteFolder}
+                  />
+                  {!isCollapsed && (
+                    <ul className="space-y-px">
+                      {bucket.length === 0 ? (
+                        <li className="px-3 py-1.5 text-[11px] text-muted-foreground/60">
+                          Empty folder
+                        </li>
+                      ) : (
+                        bucket.map((note) => (
+                          <NoteRow
+                            key={note.id}
+                            note={note}
+                            active={note.id === activeNoteId}
+                            folders={sortedFolders}
+                            onSelect={onSelectNote}
+                            onDelete={onDeleteNote}
+                            onMoveToFolder={onMoveNoteToFolder}
+                          />
+                        ))
+                      )}
+                    </ul>
+                  )}
+                </div>
               )
             })}
-          </ul>
+
+            <div>
+              {sortedFolders.length > 0 && (
+                <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Unfiled
+                </div>
+              )}
+              <ul className="space-y-px">
+                {unfiled.map((note) => (
+                  <NoteRow
+                    key={note.id}
+                    note={note}
+                    active={note.id === activeNoteId}
+                    folders={sortedFolders}
+                    onSelect={onSelectNote}
+                    onDelete={onDeleteNote}
+                    onMoveToFolder={onMoveNoteToFolder}
+                  />
+                ))}
+              </ul>
+            </div>
+          </div>
         )}
       </ScrollArea>
     </aside>

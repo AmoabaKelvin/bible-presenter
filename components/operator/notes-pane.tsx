@@ -5,7 +5,7 @@ import { Plus, ListPlus, PencilLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotesList } from "./notes-list"
 import { NoteSlideCard } from "./note-slide-card"
-import type { NoteSlide, SavedNote } from "./types"
+import type { Folder, NoteSlide, SavedNote } from "./types"
 import type { SelectedVerse } from "@/components/slide-stage"
 import { noteSlideToVerse, slideHasContent } from "@/lib/note-slides"
 
@@ -14,6 +14,7 @@ interface NotesPaneProps {
   savedNotes: SavedNote[]
   activeNoteId: string | null
   newSlideId: string | null
+  folders: Folder[]
   liveVerses: SelectedVerse[]
   onDeckTitleChange: (title: string) => void
   onSlideChange: (slideId: string, patch: Partial<Pick<NoteSlide, "title" | "body">>) => void
@@ -23,6 +24,10 @@ interface NotesPaneProps {
   onSelectNote: (note: SavedNote) => void
   onNewNote: () => void
   onDeleteNote: (id: string) => void
+  onCreateFolder: (name: string) => void
+  onRenameFolder: (id: string, name: string) => void
+  onDeleteFolder: (id: string) => void
+  onMoveNoteToFolder: (noteId: string, folderId: string | null) => void
   previewSlide: (verse: SelectedVerse) => void
   projectSlide: (verse: SelectedVerse) => void
   addToQueue: (verses: SelectedVerse[]) => void
@@ -33,6 +38,7 @@ export function NotesPane({
   savedNotes,
   activeNoteId,
   newSlideId,
+  folders,
   liveVerses,
   onDeckTitleChange,
   onSlideChange,
@@ -42,6 +48,10 @@ export function NotesPane({
   onSelectNote,
   onNewNote,
   onDeleteNote,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
+  onMoveNoteToFolder,
   previewSlide,
   projectSlide,
   addToQueue,
@@ -63,10 +73,15 @@ export function NotesPane({
     <div className="h-full flex">
       <NotesList
         notes={savedNotes}
+        folders={folders}
         activeNoteId={activeNoteId}
         onSelectNote={onSelectNote}
         onNewNote={onNewNote}
         onDeleteNote={onDeleteNote}
+        onCreateFolder={onCreateFolder}
+        onRenameFolder={onRenameFolder}
+        onDeleteFolder={onDeleteFolder}
+        onMoveNoteToFolder={onMoveNoteToFolder}
       />
 
       {!note ? (
