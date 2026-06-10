@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -40,7 +39,6 @@ export function PasteSongDialog({
   const [title, setTitle] = useState("")
   const [lyrics, setLyrics] = useState("")
   const [linesPerSlide, setLinesPerSlide] = useState("")
-  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SongSearchResult[]>([])
@@ -58,7 +56,6 @@ export function PasteSongDialog({
     setTitle("")
     setLyrics("")
     setLinesPerSlide("")
-    setConfirmOpen(false)
     setQuery("")
     setResults([])
     setSearched(false)
@@ -237,8 +234,7 @@ export function PasteSongDialog({
               className="min-h-[260px] font-serif text-[15px] leading-7"
             />
             <p className="text-[11px] text-muted-foreground">
-              A blank line starts a new slide. You can set a fixed lines-per-slide
-              when you create the song.
+              A blank line starts a new slide, or set a fixed lines-per-slide below.
             </p>
           </TabsContent>
         </Tabs>
@@ -247,42 +243,33 @@ export function PasteSongDialog({
           <Button variant="ghost" size="sm" onClick={startBlank}>
             Start blank instead
           </Button>
-          <Popover open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <PopoverTrigger asChild>
-              <Button size="sm" disabled={!lyrics.trim()}>
-                Create song
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" side="top" className="w-72 space-y-3">
-              <div className="space-y-1">
-                <p className="text-[13px] font-medium">Lines per slide</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Leave blank to start a new slide on each blank line (default), or
-                  set a number to break every that many lines.
-                </p>
-              </div>
-              <Input
-                type="number"
-                min={1}
-                value={linesPerSlide}
-                onChange={(e) => setLinesPerSlide(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    create()
-                  }
-                }}
-                placeholder="Auto"
-                autoFocus
-                className="h-9"
-              />
-              <div className="flex justify-end">
-                <Button size="sm" onClick={create}>
-                  Create song
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="lines-per-slide"
+              className="text-[12px] text-muted-foreground whitespace-nowrap"
+              title="Leave blank to break on blank lines; set a number to break every N lines"
+            >
+              Lines / slide
+            </label>
+            <Input
+              id="lines-per-slide"
+              type="text"
+              inputMode="numeric"
+              value={linesPerSlide}
+              onChange={(e) => setLinesPerSlide(e.target.value.replace(/[^0-9]/g, ""))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && lyrics.trim()) {
+                  e.preventDefault()
+                  create()
+                }
+              }}
+              placeholder="Auto"
+              className="h-8 w-16 text-center"
+            />
+            <Button size="sm" onClick={create} disabled={!lyrics.trim()}>
+              Create song
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
