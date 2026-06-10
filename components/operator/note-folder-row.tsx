@@ -1,6 +1,17 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { FolderInput, Trash2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +22,73 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { Folder, SavedNote } from "./types"
+
+// A small shared dialog for naming a folder — used for both "New folder" and
+// "Rename folder" so the two flows look identical and avoid native prompts.
+interface FolderNameDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  description?: string
+  initialName?: string
+  submitLabel: string
+  onSubmit: (name: string) => void
+}
+
+export function FolderNameDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  initialName = "",
+  submitLabel,
+  onSubmit,
+}: FolderNameDialogProps) {
+  const [name, setName] = useState(initialName)
+
+  // Reset to the starting name each time the dialog opens.
+  useEffect(() => {
+    if (open) setName(initialName)
+  }, [open, initialName])
+
+  const submit = () => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onSubmit(trimmed)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {description && <DialogDescription>{description}</DialogDescription>}
+        </DialogHeader>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              submit()
+            }
+          }}
+          placeholder="Folder name"
+          autoFocus
+        />
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={!name.trim()}>
+            {submitLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function relativeTime(ts: number) {
   const diff = Date.now() - ts
@@ -51,10 +129,16 @@ export function NoteRow({
   const slideCount = note.slides?.length ?? 0
 
   return (
-    <li>
+    <li
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("application/x-note-id", note.id)
+        e.dataTransfer.effectAllowed = "move"
+      }}
+    >
       <button
         onClick={() => onSelect(note)}
-        className={`group relative w-full text-left pl-3 pr-2 py-2.5 rounded-lg transition-colors ${
+        className={`group relative w-full text-left pl-3 pr-2 py-2.5 rounded-lg transition-colors cursor-grab active:cursor-grabbing ${
           active ? "bg-accent" : "hover:bg-accent/50"
         }`}
       >
@@ -154,7 +238,9 @@ export function FolderHeader({
   onRename,
   onDelete,
 }: FolderHeaderProps) {
+  const [renameOpen, setRenameOpen] = useState(false)
   return (
+    <>
     <div className="group flex items-center gap-1 px-2 py-1">
       <button
         onClick={onToggle}
@@ -188,12 +274,7 @@ export function FolderHeader({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem
-            onSelect={() => {
-              const next = window.prompt("Rename folder", folder.name)
-              if (next !== null) onRename(folder.id, next)
-            }}
-          >
+          <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
             Rename
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -206,5 +287,14 @@ export function FolderHeader({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+      <FolderNameDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="Rename folder"
+        initialName={folder.name}
+        submitLabel="Rename"
+        onSubmit={(name) => onRename(folder.id, name)}
+      />
+    </>
   )
 }

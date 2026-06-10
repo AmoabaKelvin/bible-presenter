@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type DragEvent } from "react"
 import { FolderPlus, PencilLine, Plus } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { FolderHeader, NoteRow } from "./note-folder-row"
+import { FolderHeader, FolderNameDialog, NoteRow } from "./note-folder-row"
 import type { Folder, SavedNote } from "./types"
 
 interface NotesListProps {
@@ -33,6 +33,7 @@ export function NotesList({
   onMoveNoteToFolder,
 }: NotesListProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [createOpen, setCreateOpen] = useState(false)
 
   const sortedFolders = useMemo(
     () => [...folders].sort((a, b) => a.name.localeCompare(b.name)),
@@ -68,10 +69,29 @@ export function NotesList({
       return next
     })
 
-  const addFolder = () => {
-    const name = window.prompt("New folder name")
-    if (name !== null) onCreateFolder(name)
-  }
+  // Drop a dragged note onto a folder group (folderId) or the Unfiled group
+  // (null) to re-file it. `key` is just the highlight identity.
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  const dropZone = (key: string, folderId: string | null) => ({
+    onDragOver: (e: DragEvent) => {
+      if (!e.dataTransfer.types.includes("application/x-note-id")) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = "move"
+      setDragOverKey(key)
+    },
+    onDragLeave: (e: DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+        setDragOverKey((current) => (current === key ? null : current))
+      }
+    },
+    onDrop: (e: DragEvent) => {
+      const id = e.dataTransfer.getData("application/x-note-id")
+      e.preventDefault()
+      setDragOverKey(null)
+      if (id) onMoveNoteToFolder(id, folderId)
+    },
+    "data-drop-active": dragOverKey === key ? "" : undefined,
+  })
 
   return (
     <aside className="w-[320px] shrink-0 border-r border-border flex flex-col h-full min-h-0 bg-card/20">
@@ -88,7 +108,7 @@ export function NotesList({
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={addFolder}
+                onClick={() => setCreateOpen(true)}
                 className="size-7 grid place-items-center rounded-md border border-border bg-background hover:bg-accent transition-colors"
                 aria-label="New folder"
               >
@@ -128,7 +148,11 @@ export function NotesList({
               const bucket = byFolder.get(folder.id) ?? []
               const isCollapsed = collapsed.has(folder.id)
               return (
-                <div key={folder.id}>
+                <div
+                  key={folder.id}
+                  {...dropZone(folder.id, folder.id)}
+                  className="rounded-md transition-colors data-[drop-active]:bg-accent/60 data-[drop-active]:ring-1 data-[drop-active]:ring-foreground/20"
+                >
                   <FolderHeader
                     folder={folder}
                     count={bucket.length}
@@ -162,7 +186,10 @@ export function NotesList({
               )
             })}
 
-            <div>
+            <div
+              {...dropZone("__unfiled__", null)}
+              className="rounded-md transition-colors data-[drop-active]:bg-accent/60 data-[drop-active]:ring-1 data-[drop-active]:ring-foreground/20"
+            >
               {sortedFolders.length > 0 && (
                 <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Unfiled
@@ -185,6 +212,14 @@ export function NotesList({
           </div>
         )}
       </ScrollArea>
+
+      <FolderNameDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="New folder"
+        submitLabel="Create"
+        onSubmit={onCreateFolder}
+      />
     </aside>
   )
 }
