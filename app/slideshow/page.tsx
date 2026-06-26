@@ -10,7 +10,8 @@ import { useSlideshowMusicPlayer } from "@/hooks/use-slideshow-music-player"
 import { useGoogleFont } from "@/hooks/use-google-font"
 
 export default function SlideshowPage() {
-  const { data, bgImageUrl, bgKind, mediaImageUrl } = useSlideshowProjection()
+  const { data, bgImageUrl, bgKind, mediaImageUrl, mediaKind, needsMediaGesture, enableMedia } =
+    useSlideshowProjection()
   const { needsAudioGesture, enableAudio } = useSlideshowMusicPlayer()
   useGoogleFont(data.presentation?.fontFamily)
   useGoogleFont(data.presentation?.referenceFontFamily)
@@ -57,6 +58,7 @@ export default function SlideshowPage() {
         backgroundImage={backgroundImage}
         backgroundKind={bgKind}
         mediaUrl={mediaUrl}
+        mediaKind={mediaKind}
         className="w-full h-full"
       >
         {data.verses.length > 0 && (
@@ -95,6 +97,16 @@ export default function SlideshowPage() {
           className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-full bg-white/90 text-black text-sm font-medium shadow-lg hover:bg-white transition-colors"
         >
           Click to enable audio
+        </button>
+      )}
+
+      {needsMediaGesture && (
+        <button
+          type="button"
+          onClick={enableMedia}
+          className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-full bg-white/90 text-black text-sm font-medium shadow-lg hover:bg-white transition-colors"
+        >
+          Click to enable media
         </button>
       )}
 

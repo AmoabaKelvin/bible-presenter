@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Geist_Mono, Fraunces } from "next/font/google";
+import { Figtree, Geist_Mono, Jost } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -17,11 +17,11 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-// Wordmark only — soft editorial serif for the "FlowCast" logotype.
-const fraunces = Fraunces({
+// Wordmark fallback — Jost is the closest free geometric sans to Century
+// Gothic, used for the "FlowCast" logotype when Century Gothic isn't installed.
+const jost = Jost({
   variable: "--font-wordmark",
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
+  weight: ["400", "700"],
   subsets: ["latin"],
   display: "swap",
 });
@@ -90,7 +90,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${figtree.variable} ${geistMono.variable} ${fraunces.variable} antialiased overflow-hidden`}
+        className={`${figtree.variable} ${geistMono.variable} ${jost.variable} antialiased overflow-hidden`}
       >
         <ThemeProvider
           attribute="class"

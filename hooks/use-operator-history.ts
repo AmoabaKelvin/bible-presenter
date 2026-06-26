@@ -7,7 +7,7 @@ import { readLegacyJson, readPersisted, removePersisted, writePersisted } from "
 
 const HISTORY_KEY = "biblePresenterHistory"
 
-type MediaSlide = { id: string; url: string } | null
+type MediaSlide = { id: string; url: string; kind: "image" | "video" } | null
 
 type UseOperatorHistoryOptions = {
   version: string

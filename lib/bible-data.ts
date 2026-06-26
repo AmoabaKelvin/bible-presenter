@@ -27,6 +27,7 @@ export const BIBLE_VERSIONS: BibleVersion[] = [
   { code: "HCSB", apiId: "englishhcsb", name: "Holman Christian Standard Bible" },
   { code: "LSB", apiId: "englishlsb", name: "Legacy Standard Bible" },
   { code: "MEV", apiId: "englishmev", name: "Modern English Version" },
+  { code: "MSG", apiId: "englishmsg", name: "The Message" },
   { code: "NASB", apiId: "englishnasb", name: "New American Standard Bible" },
   { code: "NASU", apiId: "englishnasu", name: "NASB Update" },
   { code: "NET", apiId: "englishnet", name: "New English Translation" },

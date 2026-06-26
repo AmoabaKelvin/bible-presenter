@@ -88,6 +88,7 @@ interface ScriptureResultsProps {
   onPreview: (result: ScriptureSearchResult) => void
   onProject: (result: ScriptureSearchResult) => void
   onQueue: (result: ScriptureSearchResult) => void
+  onNavigate: (result: ScriptureSearchResult) => void
   onClose: () => void
 }
 
@@ -97,6 +98,7 @@ export function ScriptureResults({
   onPreview,
   onProject,
   onQueue,
+  onNavigate,
   onClose,
 }: ScriptureResultsProps) {
   if (results.length === 0) return null
@@ -107,7 +109,7 @@ export function ScriptureResults({
           key={`${result.reference}-${index}`}
           value={`${result.reference}-${index}`}
           onSelect={() => {
-            onProject(result)
+            onNavigate(result)
             onClose()
           }}
           className="group flex-col items-start gap-1 py-2.5"

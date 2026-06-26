@@ -19,7 +19,7 @@ import { deleteVersion, listDownloadedVersions } from "@/lib/bible-cache"
 
 // Versions the eightlabs API doesn't serve: they hydrate from their baked-in
 // public/bibles bundle rather than a network download.
-const BUNDLE_ONLY = new Set(["CEV", "TLB"])
+const BUNDLE_ONLY = new Set(["CEV", "TLB", "MSG"])
 
 // A small SVG ring that fills clockwise with download progress. When
 // indeterminate (indexing phase) it spins with a fixed partial arc.

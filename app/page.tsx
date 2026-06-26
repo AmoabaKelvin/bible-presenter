@@ -46,6 +46,7 @@ export default function OperatorPage() {
   useWarmBundledBibles(version)
   useWarmSemanticIndex()
   const [showsOpen, setShowsOpen] = useState(false)
+  const [bibleSearchQuery, setBibleSearchQuery] = useState("")
 
   const previewContentRef = useRef<HTMLDivElement>(null)
   const {
@@ -82,14 +83,22 @@ export default function OperatorPage() {
   } = useOperatorProjection({ fontSize, version, previewContentRef })
   const {
     media,
+    folders: mediaFolders,
     background,
     themeLoaded,
     handleMediaUpload,
+    addVideos,
     deleteMedia,
     handlePreviewMedia,
     handleProjectMedia,
     prepareMedia,
     setMediaAsBackground,
+    createMediaFolder,
+    renameMediaFolder,
+    deleteMediaFolder,
+    moveMediaToFolder,
+    moveManyToFolder,
+    uploadMediaFolder,
   } = useOperatorMedia({
     setPreviewVerses,
     setLiveVerses,
@@ -285,7 +294,8 @@ export default function OperatorPage() {
         onQueueProjectAt={queueGoto}
         onQueueTapReference={(reference) => {
           setMode("bible")
-          goToReference(reference)
+          handleReferenceChange(null, null)
+          setBibleSearchQuery(reference)
         }}
         onQueueRemove={queueRemove}
         onQueueReorder={queueReorder}
@@ -317,6 +327,8 @@ export default function OperatorPage() {
             onPreviewSearchResult={previewSearchResult}
             onProjectSearchResult={projectSearchResult}
             onQueueSearchResult={queueSearchResult}
+            searchQuery={bibleSearchQuery}
+            onSearchQueryChange={setBibleSearchQuery}
           />
         )}
         {mode === "notes" && (
@@ -368,12 +380,20 @@ export default function OperatorPage() {
         {mode === "media" && (
           <MediaPane
             items={media}
+            folders={mediaFolders}
             onUpload={handleMediaUpload}
+            onAddVideos={addVideos}
+            onUploadFolder={uploadMediaFolder}
             onDelete={deleteMedia}
             onPreview={handlePreviewMedia}
             onProject={handleProjectMedia}
             onPrepare={prepareMedia}
             onSetBackground={setMediaAsBackground}
+            onCreateFolder={createMediaFolder}
+            onRenameFolder={renameMediaFolder}
+            onDeleteFolder={deleteMediaFolder}
+            onMoveToFolder={moveMediaToFolder}
+            onMoveManyToFolder={moveManyToFolder}
           />
         )}
         {mode === "dictionary" && (
@@ -392,6 +412,8 @@ export default function OperatorPage() {
         liveVerses={liveVerses}
         previewMediaUrl={previewMedia?.url ?? null}
         liveMediaUrl={liveMedia?.url ?? null}
+        previewMediaKind={previewMedia?.kind ?? "image"}
+        liveMediaKind={liveMedia?.kind ?? "image"}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
         presentation={presentation}
@@ -441,6 +463,10 @@ export default function OperatorPage() {
         onPreview={previewSearchResult}
         onProject={projectSearchResult}
         onQueue={queueSearchResult}
+        onNavigate={(result) => {
+          setMode("bible")
+          goToReference(result.reference)
+        }}
         onDefinePreview={previewDefinition}
         onDefineProject={projectDefinition}
         onDefineQueue={queueDefinition}

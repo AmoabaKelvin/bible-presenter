@@ -23,6 +23,7 @@ const HIGHLIGHTS = [
 interface SlidePreviewPanelProps {
   verses: SelectedVerse[]
   mediaUrl: string | null
+  mediaKind: "image" | "video"
   fontSize: FontSize
   presentation: PresentationSettings
   version: string
@@ -40,6 +41,7 @@ interface SlidePreviewPanelProps {
 export function SlidePreviewPanel({
   verses,
   mediaUrl,
+  mediaKind,
   fontSize,
   presentation,
   version,
@@ -111,6 +113,7 @@ export function SlidePreviewPanel({
           backgroundImage={backgroundImage}
           backgroundKind={backgroundKind ?? undefined}
           mediaUrl={mediaUrl}
+          mediaKind={mediaKind}
           className="w-full h-full"
         >
           {verses.length > 0 && (

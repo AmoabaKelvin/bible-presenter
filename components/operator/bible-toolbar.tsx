@@ -1,6 +1,7 @@
 "use client"
 
-import { ChevronRight, CloudDownload } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Check, ChevronRight, ChevronsUpDown, CloudDownload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -8,12 +9,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { useDownloadedBibleVersions } from "@/hooks/use-downloaded-bible-versions"
 import { BIBLE_VERSIONS, type BibleBook } from "@/lib/bible-data"
 import { OfflineManager } from "./offline-manager"
@@ -136,34 +138,91 @@ function BibleVersionSelect({
   onVersionChange: (version: string) => void
   onOpen: () => void
 }) {
+  const [open, setOpen] = useState(false)
+
+  // "?" opens the version combobox from anywhere in the reader (focus then
+  // lands in the search box). Skipped while typing in a field — including the
+  // combobox's own search once it's open. A ref keeps onOpen out of the deps so
+  // the listener isn't re-subscribed on every render.
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "?") return
+      const target = e.target as HTMLElement | null
+      const editable =
+        target && (/^(INPUT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable)
+      if (editable) return
+      e.preventDefault()
+      onOpenRef.current()
+      setOpen(true)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   return (
-    <Select
-      value={version}
-      onValueChange={onVersionChange}
-      onOpenChange={(open) => open && onOpen()}
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) onOpen()
+      }}
     >
-      <SelectTrigger size="sm" className="h-9 w-auto min-w-0 px-2.5 gap-1.5 text-xs font-mono">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent align="end" className="max-h-[60vh]">
-        {BIBLE_VERSIONS.map((bibleVersion) => (
-          <SelectItem key={bibleVersion.code} value={bibleVersion.code} className="text-xs">
-            <span className="font-mono mr-2 inline-flex items-center gap-1.5">
-              <span
-                className={`size-1.5 rounded-full ${
-                  downloadedVersions.has(bibleVersion.code) ? "bg-emerald-500" : "bg-transparent"
-                }`}
-                aria-label={
-                  downloadedVersions.has(bibleVersion.code) ? "Available offline" : undefined
-                }
-              />
-              {bibleVersion.code}
-            </span>
-            <span className="text-muted-foreground">{bibleVersion.name}</span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          role="combobox"
+          aria-expanded={open}
+          title="Change version (?)"
+          className="h-9 w-auto min-w-0 px-2.5 gap-1.5 text-xs font-mono"
+        >
+          {version}
+          <ChevronsUpDown className="size-3.5 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[260px] p-0">
+        <Command>
+          <CommandInput placeholder="Search versions…" className="text-xs" />
+          <CommandList className="max-h-[60vh]">
+            <CommandEmpty>No version found.</CommandEmpty>
+            <CommandGroup>
+              {BIBLE_VERSIONS.map((bibleVersion) => (
+                <CommandItem
+                  key={bibleVersion.code}
+                  value={bibleVersion.code}
+                  keywords={[bibleVersion.name]}
+                  onSelect={() => {
+                    onVersionChange(bibleVersion.code)
+                    setOpen(false)
+                  }}
+                  className="text-xs gap-2"
+                >
+                  <span className="font-mono inline-flex items-center gap-1.5">
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        downloadedVersions.has(bibleVersion.code) ? "bg-emerald-500" : "bg-transparent"
+                      }`}
+                      aria-label={
+                        downloadedVersions.has(bibleVersion.code) ? "Available offline" : undefined
+                      }
+                    />
+                    {bibleVersion.code}
+                  </span>
+                  <span className="text-muted-foreground truncate">{bibleVersion.name}</span>
+                  <Check
+                    className={`ml-auto size-3.5 ${
+                      version === bibleVersion.code ? "opacity-100" : "opacity-0"
+                    }`}
+                  />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 

@@ -191,7 +191,7 @@ export function NotesList({
               className="rounded-md transition-colors data-[drop-active]:bg-accent/60 data-[drop-active]:ring-1 data-[drop-active]:ring-foreground/20"
             >
               {sortedFolders.length > 0 && (
-                <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="px-3 py-1 text-[13px] font-bold uppercase tracking-wide text-muted-foreground">
                   Unfiled
                 </div>
               )}

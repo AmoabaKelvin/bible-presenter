@@ -28,6 +28,7 @@ interface CommandPaletteProps {
   onPreview: (result: ScriptureSearchResult) => void
   onProject: (result: ScriptureSearchResult) => void
   onQueue: (result: ScriptureSearchResult) => void
+  onNavigate: (result: ScriptureSearchResult) => void
   onDefinePreview: (v: SelectedVerse) => void
   onDefineProject: (v: SelectedVerse) => void
   onDefineQueue: (v: SelectedVerse) => void
@@ -38,6 +39,7 @@ export function CommandPalette({
   onPreview,
   onProject,
   onQueue,
+  onNavigate,
   onDefinePreview,
   onDefineProject,
   onDefineQueue,
@@ -153,6 +155,7 @@ export function CommandPalette({
                 onPreview={onPreview}
                 onProject={onProject}
                 onQueue={onQueue}
+                onNavigate={onNavigate}
                 onClose={close}
               />
             )}
@@ -165,7 +168,7 @@ export function CommandPalette({
           </CommandList>
           <div className="flex items-center justify-end gap-3 border-t px-3 py-2 text-[11px] text-muted-foreground">
             <span>
-              <PaletteKbd>↵</PaletteKbd> Project
+              <PaletteKbd>↵</PaletteKbd> {isDict ? "Project" : "Open"}
             </span>
             <span>
               <PaletteKbd>Esc</PaletteKbd> Close

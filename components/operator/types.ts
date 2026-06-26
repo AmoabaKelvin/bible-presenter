@@ -16,10 +16,18 @@ export interface HistoryItem {
 export interface MediaItem {
   id: string
   name: string
+  // Discriminates how the tile renders and whether the item can be projected.
+  // Legacy items (uploaded before videos were supported) load as "image".
+  kind: "image" | "video"
   imageId?: string // IndexedDB key (new); dataUrl kept for legacy items
+  // Videos store only a File System Access handle id (no bytes copied) plus a
+  // captured `thumbnailId` poster; they have no `imageId`/`dataUrl`.
+  handleId?: string
   thumbnailId?: string // Small IndexedDB image for the media grid
   dataUrl?: string
   createdAt: number
+  // Files the item under a media `Folder`; absent/unknown id means "Unfiled".
+  folderId?: string
 }
 
 // One slide within a note. Title is optional (projected as the reference

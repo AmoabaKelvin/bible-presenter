@@ -26,10 +26,18 @@ export interface PresentationSettings {
   // text inside the safe area at scale 1; scaling up clamps to the fit so the
   // text never overflows the 1920×1080 canvas.
   fontScale: number
+  // Multiplier for the scripture reference line, independent of `fontScale`.
+  // Optional: when unset it falls back to `fontScale`, preserving the previous
+  // shared-size behavior for settings persisted before this existed.
+  referenceFontScale?: number
   // Where the scripture reference line sits relative to the verse text.
   referencePosition: ReferencePosition
   // Empty string inherits `fontFamily`. Lets the reference use its own face.
   referenceFontFamily: string
+  // Custom color for the reference line (any CSS color string). Empty/unset
+  // uses the automatic color derived from the background (light on imagery,
+  // a muted tone of the text color otherwise).
+  referenceColor?: string
 }
 
 // Bounds keep the text area from ever collapsing, whatever the user drags to.
@@ -97,5 +105,9 @@ export function fontFamilyCss(family: string | null | undefined): string | undef
 export function mergePresentation(
   partial?: Partial<PresentationSettings> | null,
 ): PresentationSettings {
-  return { ...DEFAULT_PRESENTATION, ...(partial ?? {}) }
+  const merged = { ...DEFAULT_PRESENTATION, ...(partial ?? {}) }
+  // The reference size defaults to the scripture scale so older settings — and
+  // anything that never set it — keep the previous shared-size behavior.
+  if (merged.referenceFontScale == null) merged.referenceFontScale = merged.fontScale
+  return merged
 }

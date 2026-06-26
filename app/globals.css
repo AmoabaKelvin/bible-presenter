@@ -117,7 +117,8 @@
 
 @layer components {
   .font-wordmark {
-    font-family: var(--font-wordmark), Georgia, serif;
+    font-family: "Century Gothic", var(--font-wordmark), "URW Gothic", "Futura", ui-sans-serif, sans-serif;
+    font-weight: 700;
   }
 
   .eyebrow {

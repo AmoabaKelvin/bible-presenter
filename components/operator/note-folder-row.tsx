@@ -255,7 +255,7 @@ export function FolderHeader({
         >
           <path d="M4.5 3L8 6L4.5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="truncate text-[13px] font-bold uppercase tracking-wide text-muted-foreground">
           {folder.name}
         </span>
         <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums">{count}</span>

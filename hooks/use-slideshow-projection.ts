@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { VerseData } from "@/components/operator/types"
-import { resolveBackgroundMedia, resolveImageUrl, type BackgroundMediaKind } from "@/lib/image-store"
+import { resolveBackgroundMedia, resolveProjectedMedia, type BackgroundMediaKind } from "@/lib/image-store"
 import { readLegacyString, readPersisted } from "@/lib/persistence"
 import { mergePresentation, type PresentationSettings } from "@/lib/presentation-settings"
 import { normalizeBackgroundConfig, resolveLayer } from "@/lib/background-config"
@@ -90,6 +90,10 @@ export function useSlideshowProjection() {
   const [bgImageUrl, setBgImageUrl] = useState<string | null>(null)
   const [bgKind, setBgKind] = useState<BackgroundMediaKind>("image")
   const [mediaImageUrl, setMediaImageUrl] = useState<string | null>(null)
+  const [mediaKind, setMediaKind] = useState<BackgroundMediaKind>("image")
+  // A projected video handle needs read permission, which requires a user
+  // gesture this window hasn't had on load — surface a prompt to grant it.
+  const [needsMediaGesture, setNeedsMediaGesture] = useState(false)
 
   useEffect(() => {
     updateFavicon()
@@ -142,13 +146,34 @@ export function useSlideshowProjection() {
 
   useEffect(() => {
     let cancelled = false
-    resolveImageUrl(data.mediaId).then((url) => {
-      if (!cancelled) setMediaImageUrl(url)
+    // No gesture on load — query permission only. An ungranted video handle
+    // sets needsMediaGesture so the page can offer a "Click to enable" prompt.
+    resolveProjectedMedia(data.mediaId).then((media) => {
+      if (cancelled) return
+      if (media && "needsPermission" in media) {
+        setMediaImageUrl(null)
+        setNeedsMediaGesture(true)
+        return
+      }
+      setMediaImageUrl(media?.url ?? null)
+      setMediaKind(media?.kind ?? "image")
+      setNeedsMediaGesture(false)
     })
     return () => {
       cancelled = true
     }
   }, [data.mediaId])
 
-  return { data, bgImageUrl, bgKind, mediaImageUrl }
+  // Re-resolve from a user gesture so the handle's read permission can be
+  // requested; on success the video URL resolves and the prompt clears.
+  const enableMedia = useCallback(() => {
+    resolveProjectedMedia(data.mediaId, { request: true }).then((media) => {
+      if (!media || "needsPermission" in media) return
+      setMediaImageUrl(media.url)
+      setMediaKind(media.kind)
+      setNeedsMediaGesture(false)
+    })
+  }, [data.mediaId])
+
+  return { data, bgImageUrl, bgKind, mediaImageUrl, mediaKind, needsMediaGesture, enableMedia }
 }

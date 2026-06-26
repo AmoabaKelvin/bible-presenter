@@ -30,6 +30,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { HexColorPicker } from "react-colorful"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SlideContent, SlideStage, type SelectedVerse } from "@/components/slide-stage"
 import { useGoogleFont } from "@/hooks/use-google-font"
@@ -251,6 +258,60 @@ function FontPicker({ value, onChange, defaultLabel = "Default (editorial serif)
   )
 }
 
+// Reference-line color: a swatch button opens a Popover with the picker; an
+// empty value means "Auto" (derived from the background by the slide stage).
+function ColorField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const active = value.trim()
+  return (
+    <div className="flex items-center gap-2">
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs hover:bg-accent transition-colors"
+          >
+            <span
+              className="size-4 rounded-sm border border-border"
+              style={
+                active
+                  ? { backgroundColor: active }
+                  : {
+                      backgroundImage:
+                        "linear-gradient(45deg,var(--border) 25%,transparent 25%,transparent 75%,var(--border) 75%),linear-gradient(45deg,var(--border) 25%,transparent 25%,transparent 75%,var(--border) 75%)",
+                      backgroundSize: "8px 8px",
+                      backgroundPosition: "0 0,4px 4px",
+                    }
+              }
+            />
+            {active ? active.toUpperCase() : "Auto"}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          className="w-56 space-y-2 p-3 [&_.react-colorful]:h-28 [&_.react-colorful]:w-full [&_.react-colorful__hue]:mt-2 [&_.react-colorful__hue]:h-3 [&_.react-colorful__hue]:rounded-md [&_.react-colorful__saturation]:rounded-md"
+        >
+          <HexColorPicker color={active || "#d1d5db"} onChange={onChange} />
+          <input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Auto"
+            className="w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-xs"
+          />
+        </PopoverContent>
+      </Popover>
+      {active && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Auto
+        </button>
+      )}
+    </div>
+  )
+}
+
 interface PresentationSettingsDialogProps {
   settings: PresentationSettings
   onChange: (settings: PresentationSettings) => void
@@ -268,28 +329,54 @@ export function PresentationSettingsDialog({
   backgroundKind,
   version,
 }: PresentationSettingsDialogProps) {
+  const [open, setOpen] = useState(false)
+  // Edits are staged in a local draft and only committed to the parent on Save,
+  // so the live preview can show pending changes without applying them yet.
+  const [draft, setDraft] = useState(settings)
+
+  // Resync the draft whenever the dialog (re)opens or the committed settings
+  // change from outside, so a discarded or closed session never leaks edits.
+  useEffect(() => {
+    if (open) setDraft(settings)
+  }, [open, settings])
+
   // Stream the chosen fonts into the operator window so the live preview below
   // renders in them immediately, before the page-level loader catches up.
-  useGoogleFont(settings.fontFamily)
-  useGoogleFont(settings.referenceFontFamily)
+  useGoogleFont(draft.fontFamily)
+  useGoogleFont(draft.referenceFontFamily)
 
   const update = <K extends keyof PresentationSettings>(
     key: K,
     value: PresentationSettings[K],
-  ) => onChange({ ...settings, [key]: value })
+  ) => setDraft((d) => ({ ...d, [key]: value }))
+
+  const dirty = useMemo(
+    () => JSON.stringify(draft) !== JSON.stringify(settings),
+    [draft, settings],
+  )
+  const save = () => {
+    onChange(draft)
+    setOpen(false)
+  }
+  // Closing the dialog without saving (clicking out, Esc, the X) discards the
+  // staged edits — the draft is reset to the committed settings on close.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setDraft(settings)
+    setOpen(next)
+  }
 
   const marginsAtDefault =
-    settings.marginX === DEFAULT_PRESENTATION.marginX &&
-    settings.marginY === DEFAULT_PRESENTATION.marginY
+    draft.marginX === DEFAULT_PRESENTATION.marginX &&
+    draft.marginY === DEFAULT_PRESENTATION.marginY
   const resetMargins = () =>
-    onChange({
-      ...settings,
+    setDraft((d) => ({
+      ...d,
       marginX: DEFAULT_PRESENTATION.marginX,
       marginY: DEFAULT_PRESENTATION.marginY,
-    })
+    }))
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
@@ -305,106 +392,146 @@ export function PresentationSettingsDialog({
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <DialogTitle>Slide settings</DialogTitle>
           <DialogDescription>
-            Typography and alignment for everything you project. Changes apply live.
+            Typography and alignment for everything you project. Changes apply when you save.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid md:grid-cols-[1fr_320px]">
-          <div className="p-6 space-y-5">
-            <Field label="Alignment">
-              <Segmented
-                value={settings.alignment}
-                options={ALIGNMENTS}
-                onChange={(v) => update("alignment", v)}
-              />
-            </Field>
+          <div className="max-h-[70vh] overflow-y-auto px-6">
+            <Accordion type="single" collapsible defaultValue="scripture" className="py-1">
+              <AccordionItem value="scripture">
+                <AccordionTrigger>Scripture</AccordionTrigger>
+                <AccordionContent className="space-y-5">
+                  <Field label="Font">
+                    <FontPicker value={draft.fontFamily} onChange={(v) => update("fontFamily", v)} />
+                  </Field>
 
-            <Field label="Font">
-              <FontPicker value={settings.fontFamily} onChange={(v) => update("fontFamily", v)} />
-            </Field>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="eyebrow text-muted-foreground">Font size</span>
+                      <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                        {Math.round(draft.fontScale * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      min={FONT_SCALE_BOUNDS.min}
+                      max={FONT_SCALE_BOUNDS.max}
+                      step={FONT_SCALE_BOUNDS.step}
+                      value={[draft.fontScale]}
+                      onValueChange={([v]) => update("fontScale", v)}
+                    />
+                  </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="eyebrow text-muted-foreground">Font size</span>
-                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                  {Math.round(settings.fontScale * 100)}%
-                </span>
-              </div>
-              <Slider
-                min={FONT_SCALE_BOUNDS.min}
-                max={FONT_SCALE_BOUNDS.max}
-                step={FONT_SCALE_BOUNDS.step}
-                value={[settings.fontScale]}
-                onValueChange={([v]) => update("fontScale", v)}
-              />
-            </div>
+                  <Field label="Weight">
+                    <Segmented
+                      value={draft.scriptureWeight}
+                      options={SCRIPTURE_WEIGHTS}
+                      onChange={(v) => update("scriptureWeight", v)}
+                    />
+                  </Field>
 
-            <Field label="Letter case">
-              <Segmented
-                value={settings.textCase}
-                options={CASES}
-                onChange={(v) => update("textCase", v)}
-              />
-            </Field>
+                  <Field label="Letter case">
+                    <Segmented
+                      value={draft.textCase}
+                      options={CASES}
+                      onChange={(v) => update("textCase", v)}
+                    />
+                  </Field>
+                </AccordionContent>
+              </AccordionItem>
 
-            <Field label="Scripture weight">
-              <Segmented
-                value={settings.scriptureWeight}
-                options={SCRIPTURE_WEIGHTS}
-                onChange={(v) => update("scriptureWeight", v)}
-              />
-            </Field>
+              <AccordionItem value="reference">
+                <AccordionTrigger>Reference</AccordionTrigger>
+                <AccordionContent className="space-y-5">
+                  <Field label="Font">
+                    <FontPicker
+                      value={draft.referenceFontFamily}
+                      onChange={(v) => update("referenceFontFamily", v)}
+                      defaultLabel="Same as scripture font"
+                    />
+                  </Field>
 
-            <Field label="Reference weight">
-              <Segmented
-                value={settings.referenceWeight}
-                options={REFERENCE_WEIGHTS}
-                onChange={(v) => update("referenceWeight", v)}
-              />
-            </Field>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="eyebrow text-muted-foreground">Font size</span>
+                      <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                        {Math.round((draft.referenceFontScale ?? draft.fontScale) * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      min={FONT_SCALE_BOUNDS.min}
+                      max={FONT_SCALE_BOUNDS.max}
+                      step={FONT_SCALE_BOUNDS.step}
+                      value={[draft.referenceFontScale ?? draft.fontScale]}
+                      onValueChange={([v]) => update("referenceFontScale", v)}
+                    />
+                  </div>
 
-            <Field label="Reference position">
-              <Segmented
-                value={settings.referencePosition}
-                options={REFERENCE_POSITIONS}
-                onChange={(v) => update("referencePosition", v)}
-              />
-            </Field>
+                  <Field label="Weight">
+                    <Segmented
+                      value={draft.referenceWeight}
+                      options={REFERENCE_WEIGHTS}
+                      onChange={(v) => update("referenceWeight", v)}
+                    />
+                  </Field>
 
-            <Field label="Reference font">
-              <FontPicker
-                value={settings.referenceFontFamily}
-                onChange={(v) => update("referenceFontFamily", v)}
-                defaultLabel="Same as scripture font"
-              />
-            </Field>
+                  <Field label="Position">
+                    <Segmented
+                      value={draft.referencePosition}
+                      options={REFERENCE_POSITIONS}
+                      onChange={(v) => update("referencePosition", v)}
+                    />
+                  </Field>
 
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="eyebrow text-muted-foreground">Margins</span>
-                <button
-                  type="button"
-                  onClick={resetMargins}
-                  disabled={marginsAtDefault}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  <RotateCcw className="size-3" />
-                  Reset
-                </button>
-              </div>
-              <MarginRow
-                label="Horizontal"
-                value={settings.marginX}
-                bounds={MARGIN_X_BOUNDS}
-                onChange={(v) => update("marginX", v)}
-              />
-              <MarginRow
-                label="Vertical"
-                value={settings.marginY}
-                bounds={MARGIN_Y_BOUNDS}
-                onChange={(v) => update("marginY", v)}
-              />
-            </div>
+                  <Field label="Color">
+                    <ColorField
+                      value={draft.referenceColor ?? ""}
+                      onChange={(v) => update("referenceColor", v)}
+                    />
+                  </Field>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="layout">
+                <AccordionTrigger>Layout</AccordionTrigger>
+                <AccordionContent className="space-y-5">
+                  <Field label="Alignment">
+                    <Segmented
+                      value={draft.alignment}
+                      options={ALIGNMENTS}
+                      onChange={(v) => update("alignment", v)}
+                    />
+                  </Field>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="eyebrow text-muted-foreground">Margins</span>
+                      <button
+                        type="button"
+                        onClick={resetMargins}
+                        disabled={marginsAtDefault}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                      >
+                        <RotateCcw className="size-3" />
+                        Reset
+                      </button>
+                    </div>
+                    <MarginRow
+                      label="Horizontal"
+                      value={draft.marginX}
+                      bounds={MARGIN_X_BOUNDS}
+                      onChange={(v) => update("marginX", v)}
+                    />
+                    <MarginRow
+                      label="Vertical"
+                      value={draft.marginY}
+                      bounds={MARGIN_Y_BOUNDS}
+                      onChange={(v) => update("marginY", v)}
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
 
           <div className="p-6 md:border-l border-t md:border-t-0 border-border bg-muted/30 flex flex-col gap-2">
@@ -422,13 +549,18 @@ export function PresentationSettingsDialog({
                   backgroundColor={backgroundColor}
                   backgroundImage={backgroundImage}
                   defaultVersion={version}
-                  presentation={settings}
+                  presentation={draft}
                 />
               </SlideStage>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               Google Fonts load over the network; offline they fall back to the editorial serif.
             </p>
+            <div className="mt-1">
+              <Button onClick={save} disabled={!dirty} className="w-full">
+                Save changes
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

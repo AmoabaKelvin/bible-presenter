@@ -6,7 +6,7 @@ import type { BibleBook } from "@/lib/bible-data"
 import { parseReference, type ScriptureSearchResult } from "@/lib/scripture-search"
 import { scriptureSlideFromSearchResult } from "@/lib/scripture-slides"
 
-type MediaSlide = { id: string; url: string } | null
+type MediaSlide = { id: string; url: string; kind: "image" | "video" } | null
 
 type UseBibleSearchActionsOptions = {
   version: string

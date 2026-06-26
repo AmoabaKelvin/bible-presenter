@@ -19,6 +19,8 @@ interface RightRailProps {
   liveVerses: SelectedVerse[]
   previewMediaUrl: string | null
   liveMediaUrl: string | null
+  previewMediaKind: "image" | "video"
+  liveMediaKind: "image" | "video"
   fontSize: FontSize
   onFontSizeChange: (s: FontSize) => void
   presentation: PresentationSettings
@@ -82,6 +84,8 @@ export function RightRail({
   liveVerses,
   previewMediaUrl,
   liveMediaUrl,
+  previewMediaKind,
+  liveMediaKind,
   fontSize,
   onFontSizeChange,
   presentation,
@@ -174,6 +178,7 @@ export function RightRail({
       <SlidePreviewPanel
         verses={previewVerses}
         mediaUrl={previewMediaUrl}
+        mediaKind={previewMediaKind}
         fontSize={fontSize}
         presentation={presentation}
         version={version}
@@ -191,6 +196,7 @@ export function RightRail({
       <SlideLivePanel
         verses={liveVerses}
         mediaUrl={liveMediaUrl}
+        mediaKind={liveMediaKind}
         fontSize={fontSize}
         presentation={presentation}
         version={version}

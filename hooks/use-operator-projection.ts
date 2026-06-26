@@ -14,7 +14,7 @@ import { useOperatorQueue } from "@/hooks/use-operator-queue"
 import { usePreviewHighlights } from "@/hooks/use-preview-highlights"
 import { useSlideshowOutput, type OutputPayload } from "@/hooks/use-slideshow-output"
 
-type MediaSlide = { id: string; url: string } | null
+type MediaSlide = { id: string; url: string; kind: "image" | "video" } | null
 
 type UseOperatorProjectionOptions = {
   fontSize: FontSize

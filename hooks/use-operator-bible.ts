@@ -10,7 +10,7 @@ import { useBibleNavigation } from "@/hooks/use-bible-navigation"
 import { useBibleSearchActions } from "@/hooks/use-bible-search-actions"
 import { useBibleVerseActions } from "@/hooks/use-bible-verse-actions"
 
-type MediaSlide = { id: string; url: string } | null
+type MediaSlide = { id: string; url: string; kind: "image" | "video" } | null
 
 type UseOperatorBibleOptions = {
   version: string

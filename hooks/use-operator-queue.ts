@@ -7,7 +7,7 @@ import { readLegacyJson, readLegacyString, readPersisted, writePersisted } from 
 const QUEUE_KEY = "biblePresenterQueue"
 const QUEUE_CURSOR_KEY = "biblePresenterQueueCursor"
 
-type MediaSlide = { id: string; url: string } | null
+type MediaSlide = { id: string; url: string; kind: "image" | "video" } | null
 
 type UseOperatorQueueOptions = {
   previewVerses: SelectedVerse[]

@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { BUNDLED_VERSIONS, ensureBundleHydrated } from "@/lib/offline-download"
 
-// Warm every shipped translation bundle (KJV, BSB, CEV, TLB) into IndexedDB in
+// Warm every shipped translation bundle (KJV, BSB, CEV, TLB, MSG) into IndexedDB in
 // the background as soon as the console loads, so switching to any of them — and
 // the first chapter you open — is instant instead of paying a ~1-3s hydrate +
 // search-index build on first use. `ensureBundleHydrated` is idempotent and

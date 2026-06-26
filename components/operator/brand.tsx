@@ -26,7 +26,8 @@ interface BrandLogoProps {
   className?: string
 }
 
-// Lockup: bare waves mark + the "FlowCast" wordmark in Fraunces. The mark
+// Lockup: bare waves mark + the "FlowCast" wordmark in Century Gothic (Jost
+// fallback). The mark
 // inherits text-foreground, so it's dark on light and white on dark.
 export function BrandLogo({ className }: BrandLogoProps) {
   return (

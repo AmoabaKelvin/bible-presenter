@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import {
   getPrevChapterRef,
   getNextChapterRef,
@@ -35,6 +34,8 @@ interface BiblePaneProps {
   onPreviewSearchResult: (result: ScriptureSearchResult) => void
   onProjectSearchResult: (result: ScriptureSearchResult) => void
   onQueueSearchResult: (result: ScriptureSearchResult) => void
+  searchQuery: string
+  onSearchQueryChange: (query: string) => void
 }
 
 export function BiblePane({
@@ -57,8 +58,9 @@ export function BiblePane({
   onPreviewSearchResult,
   onProjectSearchResult,
   onQueueSearchResult,
+  searchQuery: bookQuery,
+  onSearchQueryChange: setBookQuery,
 }: BiblePaneProps) {
-  const [bookQuery, setBookQuery] = useState("")
   const searchActive = bookQuery.trim().length >= 2
 
   // View state machine:

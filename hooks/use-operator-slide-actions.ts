@@ -4,7 +4,7 @@ import { useCallback, useState, type Dispatch, type SetStateAction } from "react
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { Mode } from "@/components/operator/types"
 
-type MediaSlide = { id: string; url: string } | null
+type MediaSlide = { id: string; url: string; kind: "image" | "video" } | null
 
 type UseOperatorSlideActionsOptions = {
   setMode: Dispatch<SetStateAction<Mode>>

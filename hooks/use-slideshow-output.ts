@@ -4,7 +4,7 @@ import { useCallback } from "react"
 import type { FontSize, SelectedVerse } from "@/components/slide-stage"
 import type { VerseData } from "@/components/operator/types"
 
-type MediaSlide = { id: string; url: string } | null
+type MediaSlide = { id: string; url: string; kind: "image" | "video" } | null
 
 export type OutputPayload = {
   verses?: SelectedVerse[]

@@ -22,6 +22,7 @@ export const BUNDLED_VERSIONS: Record<string, string> = {
   BSB: "/bibles/bsb.json",
   CEV: "/bibles/cev.json",
   TLB: "/bibles/tlb.json",
+  MSG: "/bibles/msg.json",
 }
 
 // Hydrate a version straight from its prebuilt public/bibles bundle, skipping

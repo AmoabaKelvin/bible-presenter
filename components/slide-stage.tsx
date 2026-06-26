@@ -58,6 +58,7 @@ interface SlideStageProps {
   backgroundImage?: string | null
   backgroundKind?: "image" | "video"
   mediaUrl?: string | null
+  mediaKind?: "image" | "video"
   className?: string
   children?: ReactNode
 }
@@ -67,6 +68,7 @@ export function SlideStage({
   backgroundImage,
   backgroundKind = "image",
   mediaUrl,
+  mediaKind = "image",
   className = "",
   children,
 }: SlideStageProps) {
@@ -116,23 +118,41 @@ export function SlideStage({
           visibility: scale === 0 ? "hidden" : "visible",
         }}
       >
-        {mediaUrl && (
-          <img
-            src={mediaUrl}
-            alt=""
-            draggable={false}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              objectPosition: "center",
-              userSelect: "none",
-              pointerEvents: "none",
-            }}
-          />
-        )}
+        {mediaUrl &&
+          (mediaKind === "video" ? (
+            <video
+              src={mediaUrl}
+              autoPlay
+              loop
+              playsInline
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                objectPosition: "center",
+                userSelect: "none",
+                pointerEvents: "none",
+              }}
+            />
+          ) : (
+            <img
+              src={mediaUrl}
+              alt=""
+              draggable={false}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                objectPosition: "center",
+                userSelect: "none",
+                pointerEvents: "none",
+              }}
+            />
+          ))}
         {children}
       </div>
     </div>
@@ -172,12 +192,16 @@ export function SlideContent({
   presentation,
 }: SlideContentProps) {
   const textColor = backgroundImage ? "#ffffff" : getTextColorHex(backgroundColor)
-  const referenceColor = backgroundImage
-    ? "#d1d5db"
-    : getReferenceColorHex(backgroundColor)
   const proseInvert = textColor === "#ffffff"
 
   const style = mergePresentation(presentation)
+  // A custom reference color overrides the automatic one; empty/unset keeps the
+  // light-on-image / themed color derived from the background.
+  const referenceColor = style.referenceColor?.trim()
+    ? style.referenceColor
+    : backgroundImage
+      ? "#d1d5db"
+      : getReferenceColorHex(backgroundColor)
   const align = ALIGNMENT_CSS[style.alignment]
   const fontFamily = fontFamilyCss(style.fontFamily)
   // The reference may use its own face; empty inherits the scripture font.
@@ -187,6 +211,9 @@ export function SlideContent({
   const scriptureWeight = SCRIPTURE_WEIGHT_VALUE[style.scriptureWeight]
   const referenceWeight = REFERENCE_WEIGHT_VALUE[style.referenceWeight]
   const fontScale = clampFontScale(style.fontScale)
+  // The reference scales independently of the scripture body; unset falls back
+  // to the scripture scale so existing slides look unchanged.
+  const referenceFontScale = clampFontScale(style.referenceFontScale ?? style.fontScale)
 
   // Margins define the safe area the auto-fit targets: vertical sets the height
   // the text fills, horizontal sets the line length.
@@ -223,7 +250,7 @@ export function SlideContent({
   // keeps the same rhythm. The fit already targets a smaller area when scaled
   // up, so the multiplied result stays inside the safe area.
   const verseFs = fitVerseFs * fontScale
-  const refFs = fitRefFs * fontScale
+  const refFs = fitRefFs * referenceFontScale
   const noteTitleFs = fitNoteTitleFs * fontScale
   const refMt = fitRefMt * fontScale
   const noteTitleMb = fitNoteTitleMb * fontScale

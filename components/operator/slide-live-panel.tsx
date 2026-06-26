@@ -13,6 +13,7 @@ import type { PresentationSettings } from "@/lib/presentation-settings"
 interface SlideLivePanelProps {
   verses: SelectedVerse[]
   mediaUrl: string | null
+  mediaKind: "image" | "video"
   fontSize: FontSize
   presentation: PresentationSettings
   version: string
@@ -26,6 +27,7 @@ interface SlideLivePanelProps {
 export function SlideLivePanel({
   verses,
   mediaUrl,
+  mediaKind,
   fontSize,
   presentation,
   version,
@@ -85,6 +87,7 @@ export function SlideLivePanel({
           backgroundImage={backgroundImage}
           backgroundKind={backgroundKind ?? undefined}
           mediaUrl={mediaUrl}
+          mediaKind={mediaKind}
           className="w-full h-full"
         >
           {verses.length > 0 && (
