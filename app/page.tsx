@@ -294,8 +294,7 @@ export default function OperatorPage() {
         onQueueProjectAt={queueGoto}
         onQueueTapReference={(reference) => {
           setMode("bible")
-          handleReferenceChange(null, null)
-          setBibleSearchQuery(reference)
+          goToReference(reference)
         }}
         onQueueRemove={queueRemove}
         onQueueReorder={queueReorder}
