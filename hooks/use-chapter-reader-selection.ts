@@ -7,7 +7,7 @@ type SelectionHighlight = { top: number; height: number } | null
 type UseChapterReaderSelectionOptions = {
   bookName?: string
   chapter: number | null
-  verseCount: number
+  verses: readonly unknown[]
   selectedVerse: number | null
   rangeStart: number | null
   rangeEnd: number | null
@@ -16,11 +16,12 @@ type UseChapterReaderSelectionOptions = {
 export function useChapterReaderSelection({
   bookName,
   chapter,
-  verseCount,
+  verses,
   selectedVerse,
   rangeStart,
   rangeEnd,
 }: UseChapterReaderSelectionOptions) {
+  const verseCount = verses.length
   const scrollRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const skipNextScrollRef = useRef(false)
@@ -48,7 +49,7 @@ export function useChapterReaderSelection({
 
   const measureHighlight = useCallback(() => {
     const list = listRef.current
-    if (!list || verseCount === 0) return setHighlight(null)
+    if (!list || verses.length === 0) return setHighlight(null)
     const start = rangeStart ?? selectedVerse
     const end = rangeEnd ?? start
     if (start == null || end == null) return setHighlight(null)
@@ -57,7 +58,7 @@ export function useChapterReaderSelection({
     if (!startItem || !endItem) return setHighlight(null)
     const top = startItem.offsetTop
     setHighlight({ top, height: endItem.offsetTop + endItem.offsetHeight - top })
-  }, [selectedVerse, rangeStart, rangeEnd, verseCount])
+  }, [selectedVerse, rangeStart, rangeEnd, verses])
 
   useLayoutEffect(() => {
     measureHighlight()

@@ -55,7 +55,7 @@ export function ChapterReader({
   } = useChapterReaderSelection({
     bookName: book?.name,
     chapter,
-    verseCount: verses.length,
+    verses,
     selectedVerse,
     rangeStart,
     rangeEnd,
