@@ -70,7 +70,10 @@ async function buildEngine(): Promise<Engine | null> {
     const texts = refs.map((r) => textByRef.get(r) ?? "")
 
     // transformers.js is heavy and browser-only — load it lazily.
-    const { pipeline, env } = await import("@huggingface/transformers")
+    // "#transformers" maps to the real package in the browser and to a stub
+    // on the server (package.json "imports") so onnxruntime-node never lands
+    // in the server bundle.
+    const { pipeline, env } = await import("#transformers")
     // Serve the model + ONNX-runtime WASM from our own origin (see
     // scripts/fetch-model.mjs) so meaning-search works fully offline — no
     // HuggingFace/CDN at runtime. Single-threaded because the app isn't
@@ -82,6 +85,30 @@ async function buildEngine(): Promise<Engine | null> {
     if (wasm) {
       wasm.wasmPaths = "/ort/"
       wasm.numThreads = 1
+    }
+    // Cloudflare Workers static assets cap files at 25 MiB, so the .onnx
+    // model ships as split .partN files; reassemble them through the
+    // transformers.js custom-cache hook. The service worker caches the parts
+    // (they live under /models/), keeping offline behavior intact.
+    env.useCustomCache = true
+    env.customCache = {
+      match: async (key: string) => {
+        if (!key.startsWith("/models/") || !key.endsWith(".onnx")) return undefined
+        const parts: Blob[] = []
+        for (let i = 0; ; i++) {
+          const res = await fetch(`${key}.part${i}`)
+          if (!res.ok) {
+            if (i === 0) return undefined
+            break
+          }
+          parts.push(await res.blob())
+        }
+        const blob = new Blob(parts)
+        return new Response(blob, {
+          headers: { "content-length": String(blob.size) },
+        })
+      },
+      put: async () => {},
     }
     const extractor = await pipeline("feature-extraction", meta.model, {
       dtype: "q8",
