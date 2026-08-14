@@ -101,6 +101,13 @@ export default function RootLayout({
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
         </ThemeProvider>
         <ServiceWorkerRegister />
+        {process.env.NODE_ENV === 'production' && (
+          <script
+            defer
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon='{"token": "7052633bfd194daa81f16d2966295eb2"}'
+          />
+        )}
       </body>
     </html>
   );
