@@ -35,8 +35,8 @@ interface QueuePaneProps {
 }
 
 // A queue item should drive the bible reader only when it is a scripture cue
-// with a single, parseable chapter:verse reference (parseReference rejects
-// ranges and notes/songs/definitions).
+// with a parseable chapter:verse reference (parseReference rejects
+// notes/songs/definitions).
 function scriptureReference(v: SelectedVerse): string | null {
   if (v.kind !== "scripture") return null
   return v.reference && parseReference(v.reference) ? v.reference : null

@@ -1,5 +1,6 @@
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
+import { verseLabel } from "@/lib/bible-cache"
 import type { BibleBook } from "@/lib/bible-data"
 import {
   parseReference,
@@ -25,35 +26,37 @@ export function buildScriptureSlides({
   end,
 }: BuildScriptureSlidesOptions): SelectedVerse[] {
   if (!book || !chapter || verses.length === 0) return []
-  const items = verses.filter((v) => v.number >= start && v.number <= end)
+  const items = verses.filter((v) => v.number <= end && (v.end ?? v.number) >= start)
   if (items.length === 0) return []
   if (start === end) {
     const verse = items[0]
     return [
       {
         kind: "scripture",
-        id: `${book.name}-${chapter}-${verse.number}`,
+        id: `${book.name}-${chapter}-${verseLabel(verse)}`,
         book: book.name,
         chapter,
         verse: verse.number,
         text: verse.text,
-        reference: `${book.name} ${chapter}:${verse.number}`,
+        reference: `${book.name} ${chapter}:${verseLabel(verse)}`,
         version,
       },
     ]
   }
+  const first = Math.min(start, ...items.map((v) => v.number))
+  const last = Math.max(end, ...items.map((v) => v.end ?? v.number))
   const text = items
-    .map((v) => `<sup class="text-blue-500 font-semibold mr-1">${v.number}</sup>${v.text}`)
+    .map((v) => `<sup class="text-blue-500 font-semibold mr-1">${verseLabel(v)}</sup>${v.text}`)
     .join(" ")
   return [
     {
       kind: "scripture",
-      id: `${book.name}-${chapter}-${start}-${end}`,
+      id: `${book.name}-${chapter}-${first}-${last}`,
       book: book.name,
       chapter,
-      verse: start,
+      verse: first,
       text,
-      reference: `${book.name} ${chapter}:${start}-${end}`,
+      reference: `${book.name} ${chapter}:${first}-${last}`,
       version,
     },
   ]

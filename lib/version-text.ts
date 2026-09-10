@@ -9,7 +9,7 @@
 // cached), the original text is kept as a last resort.
 
 import { BIBLE_API_BASE, getApiTranslationId, getBookId, type BibleBook } from "@/lib/bible-data"
-import { getCachedChapter, putCachedChapter, type ChapterVerse } from "@/lib/bible-cache"
+import { getCachedChapter, putCachedChapter, verseLabel, type ChapterVerse } from "@/lib/bible-cache"
 import { parseReference, type ScriptureSearchResult } from "@/lib/scripture-search"
 
 // Cache-first chapter fetch in a specific version. Returns null if unavailable.
@@ -79,22 +79,30 @@ export async function resolveResultsToVersion(
     if (!wanted.has(key)) wanted.set(key, { book: p.book, chapter: p.chapter })
   }
 
-  const textByChapter = new Map<string, Map<number, string>>()
+  const verseByChapter = new Map<string, Map<number, ChapterVerse>>()
   await Promise.all(
     [...wanted].map(async ([key, { book, chapter }]) => {
       const verses = await chapterInVersion(version, book, chapter, signal)
       if (verses) {
-        const m = new Map<number, string>()
-        for (const v of verses) m.set(v.number, v.text)
-        textByChapter.set(key, m)
+        const m = new Map<number, ChapterVerse>()
+        for (const v of verses) {
+          for (let n = v.number; n <= (v.end ?? v.number); n++) m.set(n, v)
+        }
+        verseByChapter.set(key, m)
       }
     }),
   )
 
-  return parsed.map(({ r, p }) => {
-    if (!p) return r
-    const text = textByChapter.get(`${p.book.name}:${p.chapter}`)?.get(p.verse)
-    if (!text) return r // last resort: keep original text
-    return { reference: r.reference, text, highlight: highlight(text, query) }
-  })
+  // Several hits can land in one paragraph entry (e.g. 6:16 and 6:18 are both
+  // in The Message's 6:14-18); show that paragraph once.
+  const seen = new Set<string>()
+  return parsed
+    .map(({ r, p }) => {
+      if (!p) return r
+      const verse = verseByChapter.get(`${p.book.name}:${p.chapter}`)?.get(p.verse)
+      if (!verse) return r // last resort: keep original text
+      const reference = verse.end ? `${p.book.name} ${p.chapter}:${verseLabel(verse)}` : r.reference
+      return { reference, text: verse.text, highlight: highlight(verse.text, query) }
+    })
+    .filter((r) => !seen.has(r.reference) && seen.add(r.reference))
 }

@@ -93,11 +93,11 @@ export async function searchScripture(
 // Parse a reference string like "Genesis 1:1", "1 John 2:5", or
 // "Song of Solomon 2:16" into a known book + chapter + verse. The
 // chapter:verse always trails, so we anchor on that and treat the rest
-// as the book name.
+// as the book name. A range ("2 Corinthians 6:14-18") resolves to its first verse.
 export function parseReference(
   reference: string,
 ): { book: BibleBook; chapter: number; verse: number } | null {
-  const m = reference.trim().match(/^(.*?)\s+(\d+):(\d+)$/)
+  const m = reference.trim().match(/^(.*?)\s+(\d+):(\d+)(?:-\d+)?$/)
   if (!m) return null
   const name = m[1].trim().toLowerCase()
   const book =

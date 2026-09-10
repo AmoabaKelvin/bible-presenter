@@ -3,6 +3,7 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react"
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
+import { findVerse } from "@/lib/bible-cache"
 import type { BibleBook } from "@/lib/bible-data"
 
 type PendingProjectVerse = { book: BibleBook; chapter: number; verse: number } | null
@@ -74,10 +75,11 @@ export function useBibleVerseActions({
   const stepSelectedVerse = useCallback(
     (delta: number) => {
       if (!selectedBook || !selectedChapter || selectedVerse === null) return
-      const verseCount = selectedBook.chapters[selectedChapter - 1]
-      if (!verseCount) return
-      const target = Math.min(Math.max(selectedVerse + delta, 1), verseCount)
-      if (target === selectedVerse) return
+      // Step between entries, not verse numbers, so a paragraph entry
+      // (e.g. 14-18) is one step and printed order is kept.
+      const current = findVerse(chapterVerses, selectedVerse)
+      const target = current && chapterVerses[chapterVerses.indexOf(current) + delta]?.number
+      if (target === undefined) return
       setSelectedVerse(target)
       setRangeStartVerse(target)
       setRangeEndVerse(null)
@@ -85,6 +87,7 @@ export function useBibleVerseActions({
     },
     [
       buildSelectedVerses,
+      chapterVerses,
       selectedBook,
       selectedChapter,
       selectedVerse,

@@ -1,15 +1,16 @@
-// Standalone Node ESM script that downloads the full The Message (MSG)
-// translation from the bolls.life Bible API (translation "MSG" — "The Message,
-// 2002") and writes it to public/bibles/msg.json so the app can ship it as a
-// baked-in offline translation. The eightlabs API does not serve The Message,
-// so this alternate source is used. bolls.life serves MSG already split into
-// standard per-verse versification, so no merged-range handling is needed. One
-// request per chapter (1189 total), throttled to ~6 concurrent. DO NOT run
-// casually.
+// Standalone Node ESM script that scrapes the full The Message (MSG) from
+// BibleGateway (the eightlabs API does not serve it) and writes it to
+// public/bibles/msg.json so the app can ship it as a baked-in offline
+// translation. One request per chapter (1189 total), throttled to ~3 concurrent
+// with a small delay to be polite. DO NOT run casually.
 //
-// bolls.life returns a chapter as a JSON array of { pk, verse, text } objects,
-// keyed by a numeric book id (1 = Genesis … 66 = Revelation, standard
-// Protestant order). We map our book names to those ids below.
+// The Message is printed in paragraphs that each cover a range of verses (e.g.
+// 2 Corinthians 6:14-18), and sometimes moves verses (2 Samuel 14 prints 15-17
+// right after 7). BibleGateway keeps both: a span's class is "text Book-Chap-V"
+// or a range "text Book-Chap-V1-Book-Chap-V2". A range is stored as
+// { number: V1, end: V2, text } in printed order, and the app shows the whole
+// paragraph for any verse inside it. Don't split paragraphs into single verses:
+// the earlier bolls.life bundle did, and each "verse" was a guessed slice.
 //
 // The Message © 1993, 2002, 2018 by Eugene H. Peterson, published by NavPress.
 // Bundled here for personal, non-commercial use only.
@@ -20,11 +21,14 @@ import { writeFile, mkdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const BOLLS_BASE = "https://bolls.life"
-const TRANSLATION = "MSG"
-const CONCURRENCY = 6
+const BG_BASE = "https://www.biblegateway.com/passage/"
+const VERSION = "MSG"
+const CONCURRENCY = 3
+const DELAY_MS = 150
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
 
-// book name -> { num: bolls book id, chapters: [verseCount per chapter] }
+// book name -> { num: canonical book number, chapters: [standard verse count per chapter] }
 const BOOKS = [
   { name: "Genesis", num: 1, chapters: [31, 25, 24, 26, 32, 22, 24, 22, 29, 32, 32, 20, 18, 24, 21, 16, 27, 33, 38, 18, 34, 24, 20, 67, 34, 35, 46, 22, 35, 43, 55, 32, 20, 31, 29, 43, 36, 30, 23, 23, 57, 38, 34, 34, 28, 34, 31, 22, 33, 26] },
   { name: "Exodus", num: 2, chapters: [22, 25, 22, 31, 23, 30, 25, 32, 35, 29, 10, 51, 22, 31, 27, 36, 16, 27, 25, 26, 36, 31, 33, 18, 40, 37, 21, 43, 46, 38, 18, 35, 23, 35, 35, 38, 29, 31, 43, 38] },
@@ -94,51 +98,117 @@ const BOOKS = [
   { name: "Revelation", num: 66, chapters: [20, 29, 22, 11, 14, 17, 17, 13, 21, 11, 19, 17, 18, 20, 8, 21, 18, 24, 21, 15, 27, 21] },
 ]
 
-// Strip the HTML markup bolls.life embeds in verse text (footnote markers,
-// <br>, italics, etc.) down to plain text. Footnotes are <sup>[n]</sup>, so the
-// whole <sup> element (marker included) is dropped before the generic
-// tag-stripping pass.
-function clean(html) {
-  return String(html)
-    .replace(/<sup\b[^>]*>[\s\S]*?<\/sup>/gi, "")
+// Verses modern critical texts leave out; The Message omits them too, so these
+// gaps are expected in the coverage report.
+const OMITTED = new Set([
+  "Matthew 17:21", "Matthew 18:11", "Matthew 23:14", "Mark 7:16", "Mark 9:44", "Mark 9:46",
+  "Mark 11:26", "Mark 15:28", "Luke 17:36", "Luke 23:17", "John 5:4", "Acts 8:37",
+  "Acts 15:34", "Acts 24:7", "Acts 28:29", "Romans 16:24",
+])
+
+const ENTITIES = { nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’", mdash: "—", ndash: "–", hellip: "…" }
+
+// Plain text of one verse span: drop footnote/cross-reference/verse-number
+// superscripts and the chapter number, unwrap the rest (small-caps, italics),
+// and drop the "* * *" section dividers.
+function spanText(html) {
+  return html
+    .replace(/<sup[^>]*(?:data-fn|class="(?:crossreference|footnote|versenum)[^"]*")[^>]*>[\s\S]*?<\/sup>/gi, "")
+    .replace(/<span[^>]*class="chapternum[^"]*"[^>]*>[\s\S]*?<\/span>/gi, "")
     .replace(/<br\s*\/?>/gi, " ")
     .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&([a-z]+);/gi, (m, name) => ENTITIES[name] ?? m)
+    .replace(/\*\s*\*\s*\*/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+// Inner HTML of the span whose opening tag ends at `from`. Verse spans nest
+// other spans (small-caps, chapter numbers), so closing tags are matched by depth.
+function innerSpan(html, from) {
+  const tag = /<(\/?)span\b[^>]*>/g
+  tag.lastIndex = from
+  let depth = 1
+  let m
+  while ((m = tag.exec(html))) {
+    depth += m[1] ? -1 : 1
+    if (depth === 0) return html.slice(from, m.index)
+  }
+  return html.slice(from)
+}
+
+// A chapter page as entries in printed order. Poetry lines are separate spans
+// sharing one class, so they join into their paragraph. Headings reuse the verse
+// class, so they are removed first.
+function parseChapter(html, { chapter, verseCount }) {
+  const start = html.indexOf("passage-content")
+  if (start < 0) return []
+  const body = html.slice(start).replace(/<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi, "")
+  const re = /<span[^>]*class="text [1-3]?[A-Za-z]+-(\d+)-(\d+)(?:-[1-3]?[A-Za-z]+-(\d+)-(\d+))?"[^>]*>/g
+  const entries = new Map()
+  for (const m of body.matchAll(re)) {
+    if (Number(m[1]) !== chapter) continue
+    const number = Number(m[2])
+    const end = !m[3] ? number : Number(m[3]) === chapter ? Number(m[4]) : verseCount
+    const text = spanText(innerSpan(body, m.index + m[0].length))
+    if (!text) continue
+    const key = `${number}-${end}`
+    const entry = entries.get(key)
+    if (entry) entry.text += ` ${text}`
+    else entries.set(key, end > number ? { number, end, text } : { number, text })
+  }
+  return [...entries.values()]
 }
 
 // Build the flat list of every chapter to fetch.
 const tasks = []
 for (const book of BOOKS) {
-  book.chapters.forEach((_verseCount, i) => {
-    tasks.push({ book: book.name, num: book.num, chapter: i + 1 })
+  book.chapters.forEach((verseCount, i) => {
+    tasks.push({ book: book.name, chapter: i + 1, verseCount })
   })
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-// Fetch with a few retries + backoff: bolls.life occasionally returns a
-// transient error / rate-limits under 6-way concurrency across 1189 chapters.
+// Fetch with a few retries + backoff for transient errors and rate limits.
 async function fetchChapter(task, attempt = 0) {
-  const { num, chapter } = task
-  const url = `${BOLLS_BASE}/get-chapter/${TRANSLATION}/${num}/${chapter}/`
+  const search = encodeURIComponent(`${task.book} ${task.chapter}`)
+  const url = `${BG_BASE}?search=${search}&version=${VERSION}`
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } })
     if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
-    const data = await res.json()
-    if (!Array.isArray(data)) throw new Error(`Unexpected payload for ${url}`)
-    return data.map((v) => ({ number: v.verse, text: clean(v.text) }))
+    const verses = parseChapter(await res.text(), task)
+    if (verses.length === 0) throw new Error(`No verses parsed for ${task.book} ${task.chapter}`)
+    return verses
   } catch (err) {
     if (attempt >= 4) throw err
     await sleep(500 * (attempt + 1))
     return fetchChapter(task, attempt + 1)
   }
+}
+
+// Every standard verse should be covered by exactly one entry. Overlaps mean
+// the parse is broken; gaps outside OMITTED are verses The Message leaves out
+// or markup the parser missed, so they are listed for review.
+function checkCoverage(chapters) {
+  const overlaps = []
+  const gaps = []
+  for (const { book, chapter, verseCount } of tasks) {
+    const covered = new Set()
+    for (const v of chapters[`${book}:${chapter}`]) {
+      for (let n = v.number; n <= (v.end ?? v.number); n++) {
+        if (covered.has(n)) overlaps.push(`${book} ${chapter}:${n}`)
+        covered.add(n)
+      }
+    }
+    for (let n = 1; n <= verseCount; n++) {
+      const ref = `${book} ${chapter}:${n}`
+      if (!covered.has(n) && !OMITTED.has(ref)) gaps.push(ref)
+    }
+  }
+  return { overlaps, gaps }
 }
 
 async function run() {
@@ -156,17 +226,24 @@ async function run() {
       if (done % 25 === 0 || done === total) {
         process.stdout.write(`\rfetched ${done}/${total} chapters`)
       }
+      await sleep(DELAY_MS)
     }
   }
 
   await Promise.all(Array.from({ length: CONCURRENCY }, worker))
   process.stdout.write("\n")
 
+  const { overlaps, gaps } = checkCoverage(chapters)
+  if (gaps.length > 0) console.log(`${gaps.length} verses not covered:\n${gaps.join(", ")}`)
+  if (overlaps.length > 0) throw new Error(`Overlapping verses: ${overlaps.join(", ")}`)
+
+  const keys = tasks.map((t) => `${t.book}:${t.chapter}`)
+  const ordered = Object.fromEntries(keys.map((key) => [key, chapters[key]]))
   const __dirname = dirname(fileURLToPath(import.meta.url))
   const outDir = join(__dirname, "..", "public", "bibles")
   const outPath = join(outDir, "msg.json")
   await mkdir(outDir, { recursive: true })
-  await writeFile(outPath, JSON.stringify({ version: "MSG", chapters }))
+  await writeFile(outPath, JSON.stringify({ version: "MSG", chapters: ordered }))
   console.log(`wrote ${outPath} (${Object.keys(chapters).length} chapters)`)
 }
 

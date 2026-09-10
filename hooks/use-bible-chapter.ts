@@ -56,28 +56,27 @@ export function useBibleChapter({
     setChapterError(null)
     ;(async () => {
       try {
+        // Seed a bundled version before reading so a regenerated bundle replaces
+        // stale cached chapters. If seeding fails (offline), cached chapters
+        // still load.
+        const hydration = ensureBundleHydrated(version)
+        const seedError = hydration ? await hydration.then(() => null, (e: unknown) => e) : null
+        if (controller.signal.aborted) return
         const cached = await getCachedChapter(version, selectedBook.name, selectedChapter)
         if (controller.signal.aborted) return
-        if (cached) {
+        if (cached && cached.length > 0) {
           setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: cached })
           setChapterLoading(false)
           return
         }
+        if (seedError) throw seedError
 
-        // Bundle-only versions (e.g. CEV, TLB) aren't served by the API, so on a
-        // cache miss hydrate the baked-in bundle and read the chapter from it
-        // rather than falling through to a fetch that would 404.
-        const hydration = ensureBundleHydrated(version)
+        // Bundle-only versions (e.g. CEV, TLB) aren't served by the API, so a
+        // chapter missing from the bundle is unavailable rather than a fetch
+        // that would 404.
         if (hydration) {
-          await hydration
-          if (controller.signal.aborted) return
-          const fromBundle = await getCachedChapter(version, selectedBook.name, selectedChapter)
-          if (fromBundle && fromBundle.length > 0) {
-            setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: fromBundle })
-          } else {
-            setChapterError("This chapter is not available in the selected translation.")
-            setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: [] })
-          }
+          setChapterError("This chapter is not available in the selected translation.")
+          setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: [] })
           setChapterLoading(false)
           return
         }

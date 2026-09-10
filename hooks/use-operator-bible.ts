@@ -104,8 +104,8 @@ export function useOperatorBible({
   const handleReferenceChange = handleNavigationReferenceChange
 
   // Drive the bible reader to a reference string (e.g. "John 3:16"), the same
-  // end state as typing it into the scripture search box. Unparseable refs and
-  // ranges (parseReference only matches a single chapter:verse) are no-ops.
+  // end state as typing it into the scripture search box. A range opens at its
+  // first verse; unparseable refs are no-ops.
   const goToReference = useCallback(
     (reference: string) => {
       const parsed = parseReference(reference)

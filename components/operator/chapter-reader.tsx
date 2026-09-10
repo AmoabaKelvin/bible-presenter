@@ -4,10 +4,12 @@ import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useChapterReaderSelection } from "@/hooks/use-chapter-reader-selection"
+import { findVerse, verseLabel } from "@/lib/bible-cache"
 import type { BibleBook, BibleRef } from "@/lib/bible-data"
 
 export interface ChapterVerse {
   number: number
+  end?: number
   text: string
 }
 
@@ -46,6 +48,12 @@ export function ChapterReader({
   onDoubleClickVerse,
   onQueueVerse,
 }: ChapterReaderProps) {
+  // A selection can land on any verse inside a paragraph entry (e.g. 18 in
+  // 14-18); highlight and scroll target that entry's row.
+  const rowOf = (n: number | null) => (n === null ? null : (findVerse(verses, n)?.number ?? n))
+  const selectedRow = rowOf(selectedVerse)
+  const rangeStartRow = rowOf(rangeStart)
+  const rangeEndRow = rowOf(rangeEnd)
   const {
     scrollRef,
     listRef,
@@ -56,9 +64,9 @@ export function ChapterReader({
     bookName: book?.name,
     chapter,
     verses,
-    selectedVerse,
-    rangeStart,
-    rangeEnd,
+    selectedVerse: selectedRow,
+    rangeStart: rangeStartRow,
+    rangeEnd: rangeEndRow,
   })
 
   if (!book || !chapter) return null
@@ -80,7 +88,7 @@ export function ChapterReader({
   }
 
   const inRange = (n: number) =>
-    rangeStart !== null && rangeEnd !== null && n >= rangeStart && n <= rangeEnd
+    rangeStartRow !== null && rangeEndRow !== null && n >= rangeStartRow && n <= rangeEndRow
 
   return (
     <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
@@ -95,7 +103,7 @@ export function ChapterReader({
             <ChapterNav direction="next" target={nextRef} onNavigate={onNavigate} />
           </div>
           <span className="text-[11px] text-muted-foreground font-mono uppercase tracking-wider shrink-0">
-            {version} · {verses.length} verses
+            {version} · {verses.reduce((n, v) => n + (v.end ?? v.number) - v.number + 1, 0)} verses
           </span>
         </header>
 
@@ -111,7 +119,7 @@ export function ChapterReader({
             />
           )}
           {verses.map((v) => {
-            const active = inRange(v.number) || selectedVerse === v.number
+            const active = inRange(v.number) || selectedRow === v.number
             return (
               <li
                 key={v.number}
@@ -147,6 +155,7 @@ export function ChapterReader({
                   }`}
                 >
                   {v.number}
+                  {v.end && <span className="block">–{v.end}</span>}
                 </span>
                 <p
                   className="flex-1 font-serif text-[19px] leading-[1.65] text-foreground/90"
@@ -161,7 +170,7 @@ export function ChapterReader({
                         onQueueVerse(v.number)
                       }}
                       onDoubleClick={(e) => e.stopPropagation()}
-                      aria-label={`Add verse ${v.number} to queue`}
+                      aria-label={`Add verse ${verseLabel(v)} to queue`}
                       className="absolute right-3 top-1/2 -translate-y-1/2 size-7 grid place-items-center rounded-md border border-border bg-background text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-accent transition-all"
                     >
                       <Plus className="size-3.5" />

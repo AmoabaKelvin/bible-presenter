@@ -3,8 +3,24 @@
 // "chapters" holds verse arrays per chapter, "meta" tracks per-version
 // download state, and "indexes" stores serialized MiniSearch payloads.
 
-export type ChapterVerse = { number: number; text: string }
-export type VersionMeta = { code: string; downloadedAt: number; chapterCount: number; complete: boolean }
+// `end` is set when one entry covers a range of verses (The Message prints
+// paragraphs like 2 Corinthians 6:14-18); every verse in the range reads as it.
+export type ChapterVerse = { number: number; end?: number; text: string }
+export type VersionMeta = {
+  code: string
+  downloadedAt: number
+  chapterCount: number
+  complete: boolean
+  source?: string
+}
+
+export function verseLabel(v: ChapterVerse): string {
+  return v.end ? `${v.number}-${v.end}` : String(v.number)
+}
+
+export function findVerse<T extends ChapterVerse>(verses: readonly T[], n: number): T | undefined {
+  return verses.find((v) => v.number <= n && n <= (v.end ?? v.number))
+}
 
 const DB_NAME = "flowcastBible"
 const DB_VERSION = 1

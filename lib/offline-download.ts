@@ -5,7 +5,7 @@
 // shared so a prebuilt JSON bundle (public/bibles) can skip the network.
 
 import { allBooks, getApiTranslationId, getBookId, BIBLE_API_BASE } from "@/lib/bible-data"
-import { getVersionMeta, putCachedChapter, putSearchIndex, setVersionMeta, type ChapterVerse } from "@/lib/bible-cache"
+import { getVersionMeta, putCachedChapter, putSearchIndex, setVersionMeta, verseLabel, type ChapterVerse } from "@/lib/bible-cache"
 import { buildIndex, serializeIndex, type IndexDoc } from "@/lib/scripture-index"
 
 export const TOTAL_CHAPTERS: number = allBooks.reduce((sum, book) => sum + book.chapters.length, 0)
@@ -16,13 +16,15 @@ const CONCURRENCY = 6
 
 // Versions that ship as a prebuilt JSON bundle under public/bibles instead of
 // being fetched from the eightlabs API. CEV and TLB are not served by that API,
-// so they can only be hydrated from their baked-in bundle.
+// so they can only be hydrated from their baked-in bundle. Browsers re-seed a
+// version when its URL differs from the one it was seeded from, so bump the
+// `?v=` whenever a bundle file is regenerated.
 export const BUNDLED_VERSIONS: Record<string, string> = {
   KJV: "/bibles/kjv.json",
   BSB: "/bibles/bsb.json",
   CEV: "/bibles/cev.json",
   TLB: "/bibles/tlb.json",
-  MSG: "/bibles/msg.json",
+  MSG: "/bibles/msg.json?v=2",
 }
 
 // Hydrate a version straight from its prebuilt public/bibles bundle, skipping
@@ -38,7 +40,7 @@ export async function hydrateFromBundle(
   if (!res.ok) throw new Error(`Failed to load bundle ${url}: ${res.status}`)
   const data = await res.json()
   opts?.onProgress?.({ phase: "fetching", done: TOTAL_CHAPTERS, total: TOTAL_CHAPTERS })
-  await hydrateTranslation(version, data.chapters, { onProgress: opts?.onProgress })
+  await hydrateTranslation(version, data.chapters, { onProgress: opts?.onProgress, source: url })
 }
 
 // Idempotent, deduped hydration of a baked-in bundle. Returns null for versions
@@ -52,7 +54,7 @@ export function ensureBundleHydrated(version: string): Promise<void> | null {
   let pending = bundleHydration.get(version)
   if (!pending) {
     pending = (async () => {
-      if (await getVersionMeta(version)) return
+      if ((await getVersionMeta(version))?.source === BUNDLED_VERSIONS[version]) return
       await hydrateFromBundle(version)
     })()
     // Drop a failed hydration so a later read or warm pass can retry.
@@ -116,7 +118,7 @@ export async function downloadTranslation(
 export async function hydrateTranslation(
   version: string,
   chapters: Record<string, ChapterVerse[]>,
-  opts?: { onProgress?: (p: DownloadProgress) => void },
+  opts?: { onProgress?: (p: DownloadProgress) => void; source?: string },
 ): Promise<void> {
   const docs: IndexDoc[] = []
   const entries = Object.entries(chapters)
@@ -129,7 +131,7 @@ export async function hydrateTranslation(
     for (const verse of verses) {
       docs.push({
         id: `${book}.${chapter}.${verse.number}`,
-        reference: `${book} ${chapter}:${verse.number}`,
+        reference: `${book} ${chapter}:${verseLabel(verse)}`,
         text: verse.text,
       })
     }
@@ -145,6 +147,7 @@ export async function hydrateTranslation(
     downloadedAt: Date.now(),
     chapterCount: entries.length,
     complete: true,
+    source: opts?.source,
   })
 
   opts?.onProgress?.({ phase: "done", done: TOTAL_CHAPTERS, total: TOTAL_CHAPTERS })
