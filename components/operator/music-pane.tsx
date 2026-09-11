@@ -28,6 +28,7 @@ interface MusicPaneProps {
     track: YouTubePlaylistTrack,
     playlist: YouTubePlaylistSummary,
     index: number,
+    videoIds: string[],
   ) => void
   onLoadYouTubeVideo: (track: YouTubePlaylistTrack) => void
   onLoadSpotify: (uri: string, options?: { contextUri?: string; offsetUri?: string }) => void

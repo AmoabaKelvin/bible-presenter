@@ -58,8 +58,13 @@ export function useOperatorMusic({ openOutputWindow }: UseOperatorMusicOptions) 
   )
 
   const loadYouTubeTrack = useCallback(
-    (track: YouTubePlaylistTrack, playlist: YouTubePlaylistSummary, index: number) => {
-      applyLoadPlan(makeYouTubeTrackLoadPlan(track, playlist, index, musicState))
+    (
+      track: YouTubePlaylistTrack,
+      playlist: YouTubePlaylistSummary,
+      index: number,
+      videoIds: string[],
+    ) => {
+      applyLoadPlan(makeYouTubeTrackLoadPlan(track, playlist, index, videoIds, musicState))
     },
     [applyLoadPlan, musicState],
   )

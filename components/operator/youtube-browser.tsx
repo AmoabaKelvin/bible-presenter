@@ -35,7 +35,12 @@ interface YouTubeBrowserProps {
   activePlaylistId?: string
   onStatusChange: (status: YouTubeAuthStatus) => void
   onLoadPlaylist: (playlist: YouTubePlaylistSummary) => void
-  onLoadTrack: (track: YouTubePlaylistTrack, playlist: YouTubePlaylistSummary, index: number) => void
+  onLoadTrack: (
+    track: YouTubePlaylistTrack,
+    playlist: YouTubePlaylistSummary,
+    index: number,
+    videoIds: string[],
+  ) => void
   onLoadVideo: (track: YouTubePlaylistTrack) => void
 }
 
@@ -120,7 +125,7 @@ export function YouTubeBrowser({
           activeVideoId={activeVideoId}
           onBack={() => setOpenPlaylist(null)}
           onPlayAll={() => onLoadPlaylist(openPlaylist)}
-          onPlayTrack={(track, index) => onLoadTrack(track, openPlaylist, index)}
+          onPlayTrack={(track, index, videoIds) => onLoadTrack(track, openPlaylist, index, videoIds)}
         />
       ) : (
         <>

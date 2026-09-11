@@ -47,6 +47,7 @@ export function makeYouTubeTrackLoadPlan(
   track: YouTubePlaylistTrack,
   playlist: YouTubePlaylistSummary,
   index: number,
+  videoIds: string[],
   currentState: MusicState,
 ): MusicLoadPlan {
   return {
@@ -61,17 +62,16 @@ export function makeYouTubeTrackLoadPlan(
       uri: undefined,
       videoId: track.videoId,
       hasPlaylist: true,
-      playlistVideoIds: undefined,
+      playlistVideoIds: videoIds,
       playlistIndex: index,
       errorMessage: undefined,
     },
+    // No title/author/thumbnail: the player would show them for every later track.
     command: {
       type: "load",
       provider: "youtube",
-      videoId: track.videoId,
-      title: track.title,
-      author: track.author || playlist.channelTitle,
-      thumbnailUrl: track.thumbnailUrl,
+      videoIds,
+      playlistIndex: index,
       autoplay: true,
     },
   }

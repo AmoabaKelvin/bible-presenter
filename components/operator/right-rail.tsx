@@ -60,6 +60,7 @@ interface RightRailProps {
     track: YouTubePlaylistTrack,
     playlist: YouTubePlaylistSummary,
     index: number,
+    videoIds: string[],
   ) => void
   onMusicLoadSpotify: (uri: string, options?: { contextUri?: string; offsetUri?: string }) => void
   onMusicPlay: () => void

@@ -16,7 +16,7 @@ interface YouTubePlaylistDetailProps {
   activeVideoId?: string
   onBack: () => void
   onPlayAll: () => void
-  onPlayTrack: (track: YouTubePlaylistTrack, index: number) => void
+  onPlayTrack: (track: YouTubePlaylistTrack, index: number, videoIds: string[]) => void
 }
 
 export function YouTubePlaylistDetail({
@@ -52,6 +52,8 @@ export function YouTubePlaylistDetail({
     }
   }, [playlist.playlistId])
 
+  const videoIds = (tracks ?? []).map((track) => track.videoId)
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <div className="px-2 py-2 border-b border-border/60 flex items-center gap-2">
@@ -76,7 +78,7 @@ export function YouTubePlaylistDetail({
           className="h-7 px-2.5 text-xs shrink-0"
           onClick={() => {
             const firstTrack = tracks?.[0]
-            if (firstTrack) onPlayTrack(firstTrack, 0)
+            if (firstTrack) onPlayTrack(firstTrack, 0, videoIds)
             else onPlayAll()
           }}
         >
@@ -103,7 +105,7 @@ export function YouTubePlaylistDetail({
               active={activeVideoId === track.videoId}
               subtitle={track.author || playlist.channelTitle || ""}
               index={i}
-              onClick={() => onPlayTrack(track, i)}
+              onClick={() => onPlayTrack(track, i, videoIds)}
             />
           ))}
         </ul>

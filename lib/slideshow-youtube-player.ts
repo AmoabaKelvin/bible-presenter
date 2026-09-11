@@ -17,11 +17,13 @@ declare global {
   }
 }
 
+type PlaylistArg = { list: string; listType: string; index?: number } | string[]
+
 interface YTPlayer {
   loadVideoById: (id: string) => void
-  loadPlaylist: (opts: { list: string; listType: string; index?: number }) => void
+  loadPlaylist: (playlist: PlaylistArg, index?: number) => void
   cueVideoById: (id: string) => void
-  cuePlaylist: (opts: { list: string; listType: string; index?: number }) => void
+  cuePlaylist: (playlist: PlaylistArg, index?: number) => void
   playVideo: () => void
   pauseVideo: () => void
   stopVideo: () => void
@@ -152,12 +154,18 @@ export function createYouTubeRuntime({
           }
           publishState({ status: "loading" })
           const canAutoplay = !!cmd.autoplay && hasGesture()
-          if (cmd.playlistId) {
+          // A list of video ids plays even when the playlist is private, which
+          // the embedded player can't open by playlist id.
+          const playlist: PlaylistArg | null = cmd.videoIds?.length
+            ? cmd.videoIds
+            : cmd.playlistId
+              ? { list: cmd.playlistId, listType: "playlist", index: cmd.playlistIndex }
+              : null
+          if (playlist) {
             globalHasPlaylist = true
-            const opts = { list: cmd.playlistId, listType: "playlist", index: cmd.playlistIndex }
-            if (canAutoplay) player.loadPlaylist(opts)
+            if (canAutoplay) player.loadPlaylist(playlist, cmd.playlistIndex)
             else {
-              player.cuePlaylist(opts)
+              player.cuePlaylist(playlist, cmd.playlistIndex)
               publishState({ status: "paused" })
             }
           } else if (cmd.videoId) {
@@ -250,8 +258,12 @@ export function createYouTubeRuntime({
           if (status === null) publishState({})
           else publishState({ status })
         },
-        onError: (e: { data: number }) =>
-          publishState({ status: "error", errorMessage: `YouTube playback error ${e.data}` }),
+        onError: (e: { data: number }) => {
+          publishState({ status: "error", errorMessage: `YouTube playback error ${e.data}` })
+          // Skip a video that can't play here (removed, private, or not
+          // embeddable) so the rest of the playlist still plays.
+          if (globalHasPlaylist) globalPlayer?.nextVideo()
+        },
       },
     }) as YTPlayer
   }

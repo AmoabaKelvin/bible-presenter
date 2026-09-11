@@ -17,6 +17,7 @@ export type MusicCommand =
       videoId?: string
       playlistId?: string
       playlistIndex?: number
+      videoIds?: string[]
       title?: string
       author?: string
       thumbnailUrl?: string
