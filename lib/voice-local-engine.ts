@@ -6,8 +6,15 @@ import type { VoiceWorkerRequest, VoiceWorkerResponse } from "@/lib/voice-worker
 // Nothing leaves the machine and any input device can be chosen (the PA
 // feed). The model runs in the native helper when it's there, else in-browser.
 
+export const HELPER_DOWNLOAD_URL =
+  "https://github.com/AmoabaKelvin/bible-presenter/releases/latest/download/FlowCastVoice.zip"
+
 type EngineOptions = {
   deviceId?: string
+  // The in-browser model is a ~2.4 GB download, so it is never started
+  // behind the operator's back: without the helper we ask first.
+  allowInBrowser: boolean
+  onNeedsHelper: () => void
   onTranscript: (text: string, isFinal: boolean) => void
   onStatus: (status: string | null) => void
   // Which recognizer ended up being used: "helper", "webgpu" or "wasm".
@@ -127,13 +134,26 @@ function loadInBrowser(onStatus: (status: string) => void): Promise<Backend> {
   return inBrowser
 }
 
-export function startLocalEngine({ deviceId, onTranscript, onStatus, onBackend, onError }: EngineOptions): () => void {
+export function startLocalEngine({
+  deviceId,
+  allowInBrowser,
+  onNeedsHelper,
+  onTranscript,
+  onStatus,
+  onBackend,
+  onError,
+}: EngineOptions): () => void {
   let stopped = false
   let cleanup = () => {}
 
   ;(async () => {
-    onStatus("Loading speech model…")
-    const recognizer = connectHelper(onStatus).then((found) => found ?? loadInBrowser(onStatus))
+    onStatus("Looking for the voice helper…")
+    const helperBackend = await connectHelper(onStatus)
+    if (stopped) return
+    if (!helperBackend && !allowInBrowser) {
+      onNeedsHelper()
+      return
+    }
     // Ask for the mic while the model loads.
     const [stream, backend] = await Promise.all([
       navigator.mediaDevices.getUserMedia({
@@ -146,7 +166,7 @@ export function startLocalEngine({ deviceId, onTranscript, onStatus, onBackend, 
           noiseSuppression: false,
         },
       }),
-      recognizer,
+      helperBackend ?? loadInBrowser(onStatus),
     ])
     if (stopped) {
       stream.getTracks().forEach((track) => track.stop())

@@ -1,7 +1,8 @@
 "use client"
 
-import { Mic, MicOff } from "lucide-react"
+import { Download, Mic, MicOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { HELPER_DOWNLOAD_URL } from "@/lib/voice-local-engine"
 
 interface VoiceButtonProps {
   supported: boolean
@@ -30,6 +31,8 @@ interface VoiceStatusProps {
   listening: boolean
   status: string | null
   backend: string
+  needsHelper: boolean
+  onUseInBrowser: () => void
   inputs: { deviceId: string; label: string }[]
   deviceId: string
   onDeviceChange: (deviceId: string) => void
@@ -46,6 +49,8 @@ export function VoiceStatus({
   listening,
   status,
   backend,
+  needsHelper,
+  onUseInBrowser,
   inputs,
   deviceId,
   onDeviceChange,
@@ -56,6 +61,33 @@ export function VoiceStatus({
   onAutoProjectChange,
 }: VoiceStatusProps) {
   if (!listening && !error) return null
+  // The in-browser model is a ~2.4 GB download, so it is offered, never
+  // started unasked.
+  if (needsHelper) {
+    return (
+      <div className="shrink-0 px-4 py-1.5 border-b border-border flex items-center gap-2 text-xs" aria-live="polite">
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          Voice helper not running — it is faster and needs no download.
+        </span>
+        <a
+          href={HELPER_DOWNLOAD_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 h-6 px-2 rounded-sm border border-foreground bg-foreground text-background inline-flex items-center gap-1"
+        >
+          <Download className="size-3" />
+          Get the helper
+        </a>
+        <button
+          onClick={onUseInBrowser}
+          title="Run the speech model inside this browser instead"
+          className="shrink-0 h-6 px-2 rounded-sm border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+        >
+          Use this browser (2.4 GB)
+        </button>
+      </div>
+    )
+  }
   return (
     <div
       className="shrink-0 px-4 py-1.5 border-b border-border flex items-center gap-2 text-xs"

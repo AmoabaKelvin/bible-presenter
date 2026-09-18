@@ -41,6 +41,7 @@ export default function OperatorPage() {
   // verse on the projector mid-sermon costs more than one keypress.
   const [voiceAutoProject, setVoiceAutoProject] = usePersistedState("voice:autoProject", false)
   const [voiceDeviceId, setVoiceDeviceId] = usePersistedState("voice:deviceId", "")
+  const [voiceAllowInBrowser, setVoiceAllowInBrowser] = usePersistedState("voice:allowInBrowser", false)
   const [storedPresentation, setPresentation] = usePersistedState<PresentationSettings>(
     "presentation",
     DEFAULT_PRESENTATION,
@@ -299,7 +300,11 @@ export default function OperatorPage() {
     },
     [handleJumpProject, handleJumpSelect, selectedBook, selectedChapter, selectedVerse, stepSelectedVerse, voiceAutoProject],
   )
-  const voice = useVoiceCommands(handleVoiceIntent, voiceDeviceId)
+  const voice = useVoiceCommands(handleVoiceIntent, {
+    deviceId: voiceDeviceId,
+    allowInBrowser: voiceAllowInBrowser,
+    onAllowInBrowser: () => setVoiceAllowInBrowser(true),
+  })
 
   useOperatorKeyboardShortcuts({
     mode,
@@ -451,6 +456,8 @@ export default function OperatorPage() {
             listening={voice.listening}
             status={voice.status}
             backend={voice.backend}
+            needsHelper={voice.needsHelper}
+            onUseInBrowser={voice.useInBrowser}
             inputs={voice.inputs}
             deviceId={voiceDeviceId}
             onDeviceChange={setVoiceDeviceId}

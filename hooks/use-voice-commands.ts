@@ -21,13 +21,24 @@ const canListen = () =>
   typeof navigator.mediaDevices?.getUserMedia === "function" &&
   typeof AudioWorkletNode !== "undefined"
 
-export function useVoiceCommands(onIntent: (intent: VoiceIntent) => void, deviceId: string) {
+type VoiceOptions = {
+  deviceId: string
+  allowInBrowser: boolean
+  onAllowInBrowser: () => void
+}
+
+export function useVoiceCommands(
+  onIntent: (intent: VoiceIntent) => void,
+  { deviceId, allowInBrowser, onAllowInBrowser }: VoiceOptions,
+) {
   const [listening, setListening] = useState(false)
   const [heard, setHeard] = useState("")
   const [lastAction, setLastAction] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [inputs, setInputs] = useState<AudioInput[]>([])
+  // Helper missing and the big in-browser model not yet agreed to.
+  const [needsHelper, setNeedsHelper] = useState(false)
   const [backend, setBackend] = useState("")
   // False on the server and during hydration, then the real answer.
   const supported = useSyncExternalStore(
@@ -43,6 +54,7 @@ export function useVoiceCommands(onIntent: (intent: VoiceIntent) => void, device
   useEffect(() => {
     if (!listening) return
     warmQuoteIndexes()
+    setNeedsHelper(false)
     let firedKey: string | null = null
     let pendingKey: string | null = null
 
@@ -55,6 +67,8 @@ export function useVoiceCommands(onIntent: (intent: VoiceIntent) => void, device
 
     const stop = startLocalEngine({
       deviceId: deviceId || undefined,
+      allowInBrowser,
+      onNeedsHelper: () => setNeedsHelper(true),
       onStatus: (next) => {
         setStatus(next)
         // Device labels only become readable once the mic is granted.
@@ -107,12 +121,18 @@ export function useVoiceCommands(onIntent: (intent: VoiceIntent) => void, device
       },
     })
     return stop
-  }, [listening, deviceId])
+  }, [listening, deviceId, allowInBrowser])
 
   const toggle = useCallback(() => {
     setError(null)
+    setNeedsHelper(false)
     setListening((on) => !on)
   }, [])
 
-  return { supported, listening, heard, lastAction, error, status, inputs, backend, toggle }
+  const useInBrowser = useCallback(() => {
+    setNeedsHelper(false)
+    onAllowInBrowser()
+  }, [onAllowInBrowser])
+
+  return { supported, listening, heard, lastAction, error, status, inputs, backend, needsHelper, useInBrowser, toggle }
 }
