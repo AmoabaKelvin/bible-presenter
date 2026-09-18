@@ -26,8 +26,11 @@ export function useBibleChapter({
   // are only exposed when they match the current selection, so consumers never
   // see a previous chapter's text while a new chapter is still loading — that
   // staleness made projected slides show the right reference with the wrong
-  // verse (e.g. "John 2:5" labeling Joshua 1:5's text).
+  // verse (e.g. "John 2:5" labeling Joshua 1:5's text). The translation counts
+  // as part of the identity: switching it re-reads the same chapter, and until
+  // that lands the old wording would be stamped with the new version's name.
   const [loaded, setLoaded] = useState<{
+    version: string
     book: string
     chapter: number
     verses: ChapterVerse[]
@@ -38,6 +41,7 @@ export function useBibleChapter({
   const chapterVerses: ChapterVerse[] =
     loaded &&
     selectedBook &&
+    loaded.version === version &&
     loaded.book === selectedBook.name &&
     loaded.chapter === selectedChapter
       ? loaded.verses
@@ -65,7 +69,7 @@ export function useBibleChapter({
         const cached = await getCachedChapter(version, selectedBook.name, selectedChapter)
         if (controller.signal.aborted) return
         if (cached && cached.length > 0) {
-          setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: cached })
+          setLoaded({ version, book: selectedBook.name, chapter: selectedChapter, verses: cached })
           setChapterLoading(false)
           return
         }
@@ -76,7 +80,7 @@ export function useBibleChapter({
         // that would 404.
         if (hydration) {
           setChapterError("This chapter is not available in the selected translation.")
-          setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: [] })
+          setLoaded({ version, book: selectedBook.name, chapter: selectedChapter, verses: [] })
           setChapterLoading(false)
           return
         }
@@ -103,11 +107,11 @@ export function useBibleChapter({
         } else {
           putCachedChapter(version, selectedBook.name, selectedChapter, verses)
         }
-        setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses })
+        setLoaded({ version, book: selectedBook.name, chapter: selectedChapter, verses })
       } catch (e) {
         if ((e as Error).name === "AbortError") return
         setChapterError("Couldn't load this chapter. Please check your connection.")
-        setLoaded({ book: selectedBook.name, chapter: selectedChapter, verses: [] })
+        setLoaded({ version, book: selectedBook.name, chapter: selectedChapter, verses: [] })
       } finally {
         setChapterLoading(false)
       }

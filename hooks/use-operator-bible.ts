@@ -66,10 +66,11 @@ export function useOperatorBible({
   addToHistory,
   addToQueue,
 }: UseOperatorBibleOptions): UseOperatorBibleResult {
+  const [versionForChapter, setVersionForChapter] = useState(version)
   const [selectedBookForChapter, setSelectedBookForChapter] = useState<BibleBook | null>(null)
   const [selectedChapterForChapter, setSelectedChapterForChapter] = useState<number | null>(null)
   const { chapterVerses: loadedVerses, chapterLoading, chapterError } = useBibleChapter({
-    version,
+    version: versionForChapter,
     selectedBook: selectedBookForChapter,
     selectedChapter: selectedChapterForChapter,
   })
@@ -94,15 +95,17 @@ export function useOperatorBible({
   } = useBibleNavigation({
     version,
     chapterVerses: loadedVerses,
+    loadedVersion: versionForChapter,
     loadedBook: selectedBookForChapter,
     loadedChapter: selectedChapterForChapter,
     setPreviewVerses,
   })
 
   useEffect(() => {
+    setVersionForChapter(version)
     setSelectedBookForChapter(selectedBook)
     setSelectedChapterForChapter(selectedChapter)
-  }, [selectedBook, selectedChapter])
+  }, [version, selectedBook, selectedChapter])
 
   const handleReferenceChange = handleNavigationReferenceChange
 

@@ -26,6 +26,7 @@ type UseBibleNavigationOptions = {
   // Verses for `loadedBook`/`loadedChapter`, which trail the selection held
   // here by a render (the loader is fed from this hook's state).
   chapterVerses: ChapterVerse[]
+  loadedVersion: string
   loadedBook: BibleBook | null
   loadedChapter: number | null
   setPreviewVerses: Dispatch<SetStateAction<SelectedVerse[]>>
@@ -34,6 +35,7 @@ type UseBibleNavigationOptions = {
 export function useBibleNavigation({
   version,
   chapterVerses: loadedVerses,
+  loadedVersion,
   loadedBook,
   loadedChapter,
   setPreviewVerses,
@@ -51,7 +53,9 @@ export function useBibleNavigation({
   // straight to another chapter would label its slide with the right
   // reference and the previous chapter's text.
   const chapterVerses =
-    loadedBook === selectedBook && loadedChapter === selectedChapter ? loadedVerses : EMPTY_VERSES
+    loadedVersion === version && loadedBook === selectedBook && loadedChapter === selectedChapter
+      ? loadedVerses
+      : EMPTY_VERSES
 
   useEffect(() => {
     try {
