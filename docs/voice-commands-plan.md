@@ -133,6 +133,21 @@ The danger is a preacher saying "the message" or "the passion" in the ordinary w
 
 "Isaiah one nineteen" is written by the recognizer as `Isaiah 119`, which is both 1:19 and 11:9 — the parser used to refuse to guess and did nothing. It now takes the **shortest chapter**, because that is the only case the recognizer glues: asked for 11:9 it writes "Isaiah 11 9" (measured), running the digits together only when the verse is the two-digit half. `Psalm 119` is unaffected — a whole number that is a real chapter is tried first.
 
+## "Verse 3" on its own
+
+Jumping within the open chapter. The catch is that a two-word utterance is
+where the recognizer mangles "verse" worst: one accent turned "verse twelve"
+into **"Vos twelve"**, and the jump silently did nothing. So in this one shape
+— the whole utterance being the instruction — any word starting with `v` is
+taken as "verse", plus the sound-alikes that don't ("first", "worse"). The
+whole-utterance requirement is what keeps it safe: "the first 3 chapters" and
+"he was the first 3 times" are left alone.
+
+Not accepted on purpose: a bare "chapter 2 verse 3" with no book. A number
+immediately before "verse" usually means the book name was garbled, and
+jumping inside whatever chapter happens to be open would look right and be
+wrong.
+
 ## Book names the recognizer mangles
 
 "Luke four eighteen" came back as "Look for 18", "Job one twenty one" as "Jog 121". Rather than fuzzy-matching every three-letter book — "like", "judge" and "truth" are each one edit from one — there is a short table of forms actually observed (`look`→Luke, `jog`→Job, `marc`→Mark, `ax`→Acts…), accepted only when a full valid chapter and verse follows. A number heard as a word (`for`→4, `to`→2) is only corrected in a bare three-word reference, so "Look for 18" resolves while "Job for 7 days he sat there" stays a sentence.

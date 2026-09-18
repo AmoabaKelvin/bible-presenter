@@ -282,10 +282,24 @@ const STEP_BACK = /(?:^| )back (?:1|a) verse(?: please| now)?$/
 const DESCRIBING = /(?:^| )(?:in|of|from|on|at) (?:the |that |this )?$/
 const BACK = /(?:^| )(?:go back|take (?:me|us) back|bring (?:me|us|it) back|previous scripture|last scripture)(?: to where (?:we|i) (?:were|was))?(?: please| now)?$/
 
+// "Verse 3" on its own. Two-word utterances are where the recognizer mangles
+// "verse" worst — one accent turned it into "Vos" — so anything starting with
+// a v counts, plus the sound-alikes that don't ("first", "worse"). Safe only
+// because the whole utterance has to be the instruction: "the first 3
+// chapters" and "he was the first 3 times" are left alone.
+const BARE_VERSE = new RegExp(
+  `^(?:(?:okay|ok|and|now|please|go|to|jump|read|look|at|the|lets|let us|show|give|us|me) )*(?:v[a-z]*|${VERSE_SOUNDALIKES}) (\\d+)(?: please| now)?$`,
+)
+
 function parseCommand(tokens: string[]): VoiceIntent | null {
   if (tokens.length === 0 || tokens.length > MAX_COMMAND_WORDS) return null
   const text = tokens.join(" ")
   if (STEP_BACK.test(text)) return { type: "step", delta: -1 }
+  const bare = text.match(BARE_VERSE)
+  if (bare) {
+    const verse = Number(bare[1])
+    if (verse >= 1) return { type: "verse", verse }
+  }
   const step = text.match(STEP)
   if (step && !DESCRIBING.test(text.slice(0, step.index! + 1))) {
     const delta = step[1] === "next" ? 1 : -1

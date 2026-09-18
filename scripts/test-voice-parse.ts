@@ -93,6 +93,18 @@ const cases: [string, string | null][] = [
   ["we read Romans 8:28 but look at Genesis 1:1", "Genesis 1:1"],
   ["John 3 verse 16, and then verse 17", "John 3:17"],
   ["look at verse 5", "verse 5"],
+  // "verse" mangled in a two-word clip
+  ["Verse 3", "verse 3"],
+  ["First 3", "verse 3"],
+  ["Worse 7", "verse 7"],
+  ["Vers 12", "verse 12"],
+  ["Vos twelve", "verse 12"],
+  ["Voice 4", "verse 4"],
+  ["Vase 9", "verse 9"],
+  ["go to verse 3", "verse 3"],
+  ["the first 3 chapters of genesis", null],
+  ["he was the first 3 times", null],
+  ["first 3 and then we", null],
 
   // translation switching, in the forms the recognizer actually produces
   ["Switch to the message", "version MSG"],
