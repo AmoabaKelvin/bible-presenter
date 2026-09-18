@@ -121,6 +121,22 @@ Verified by building for production, loading once, killing the web server, and r
 
 Rejected: hosted embeddings (OpenAI). Only the query side would need the network — the verse index ships as a file either way — but that is a network call per sentence and the end of offline use. On the one fragment tested, `text-embedding-3-large` ranked the right verse first but narrowly; `3-small` and Qwen3-8B got it wrong. Clause windows solved it locally instead.
 
+## Changing translation by voice
+
+"Switch to the Message", "change to the King James", "read it in the New International Version", "use the Amplified Bible", "go to the Berean". The translation changes **and whatever is on screen re-reads in it** — the same place is re-opened, so a live John 3:16 in the KJV becomes John 3:16-18 in the MSG (which sets verses in paragraphs).
+
+Measured through the recognizer, the translation's own words survive but everything around them does not: *Translation* comes back as "Revelation", *Version* as "Verse", and *Change* as "Chapter". So the match ignores a trailing `version|translation|bible|revelation|verse|please|now|and`, accepts "chapter" as a lead-in, and matches on the name itself ("kings james" as well as "king james").
+
+The danger is a preacher saying "the message" or "the passion" in the ordinary way. Guards: the utterance must be short (≤ 8 words) and **end** with the translation's name, and it must open with an instruction — `switch, change, chapter, swap, read, put, show, use, give, display, set, open`. Names that are only ever a translation (Berean, King James, New International…) also accept a softer `go|turn|jump`; "message" and "passion" do not, so "let's go to the message" changes nothing. Spelled-out codes are accepted except where the code is an everyday word (`net`, `gw`, `easy`, `amp`, `erv`, `mev`, `esv` — say "English Standard" instead).
+
+## Spoken numbers that come back glued
+
+"Isaiah one nineteen" is written by the recognizer as `Isaiah 119`, which is both 1:19 and 11:9 — the parser used to refuse to guess and did nothing. It now takes the **shortest chapter**, because that is the only case the recognizer glues: asked for 11:9 it writes "Isaiah 11 9" (measured), running the digits together only when the verse is the two-digit half. `Psalm 119` is unaffected — a whole number that is a real chapter is tried first.
+
+## Book names the recognizer mangles
+
+"Luke four eighteen" came back as "Look for 18", "Job one twenty one" as "Jog 121". Rather than fuzzy-matching every three-letter book — "like", "judge" and "truth" are each one edit from one — there is a short table of forms actually observed (`look`→Luke, `jog`→Job, `marc`→Mark, `ax`→Acts…), accepted only when a full valid chapter and verse follows. A number heard as a word (`for`→4, `to`→2) is only corrected in a bare three-word reference, so "Look for 18" resolves while "Job for 7 days he sat there" stays a sentence.
+
 ## "Go back"
 
 `{ type: "back" }`: "go back", "take me back", "take us back to where we were", "previous scripture". `app/page.tsx` keeps a stack of where voice jumped *from* (references and quotes push; stepping doesn't), so repeated "go back" unwinds. "go back to John 3:16" is a reference, not a back.

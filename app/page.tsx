@@ -289,6 +289,11 @@ export default function OperatorPage() {
         if (previous) jump(previous.book, previous.chapter, previous.verse)
       } else if (intent.type === "step") {
         stepSelectedVerse(intent.delta, voiceAutoProject)
+      } else if (intent.type === "version") {
+        setVersion(intent.code)
+        // Re-open the same place so what is on screen re-reads in the new
+        // translation rather than sitting there in the old one.
+        if (here) jump(here.book, here.chapter, here.verse)
       } else if (here) {
         if (intent.type === "verse") {
           if (intent.verse <= here.book.chapters[here.chapter - 1]) jump(here.book, here.chapter, intent.verse)
@@ -298,7 +303,16 @@ export default function OperatorPage() {
         if (ref) jump(ref.book, ref.chapter, 1)
       }
     },
-    [handleJumpProject, handleJumpSelect, selectedBook, selectedChapter, selectedVerse, stepSelectedVerse, voiceAutoProject],
+    [
+      handleJumpProject,
+      handleJumpSelect,
+      selectedBook,
+      selectedChapter,
+      selectedVerse,
+      setVersion,
+      stepSelectedVerse,
+      voiceAutoProject,
+    ],
   )
   const voice = useVoiceCommands(handleVoiceIntent, {
     deviceId: voiceDeviceId,

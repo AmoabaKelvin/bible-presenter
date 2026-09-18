@@ -1,4 +1,4 @@
-import { allBooks, type BibleBook } from "@/lib/bible-data"
+import { allBooks, BIBLE_VERSIONS, type BibleBook } from "@/lib/bible-data"
 
 // Turns a speech-to-text transcript into a scripture action. Pure text in,
 // intent out — knows nothing about microphones or which STT engine produced
@@ -12,6 +12,8 @@ export type VoiceIntent =
   | { type: "chapter"; delta: 1 | -1 }
   // "go back" / "take me back": return to what was up before the last jump.
   | { type: "back" }
+  // "switch to the Message": read the same place in another translation.
+  | { type: "version"; code: string }
 
 type ReferenceIntent = Extract<VoiceIntent, { type: "reference" }>
 
@@ -36,6 +38,22 @@ const SPOKEN_ALIASES: Record<string, string> = {
   "songs of solomon": "Song of Solomon",
   "acts of the apostles": "Acts",
 }
+// What short book names actually come back as, collected from real use. Kept
+// deliberately narrow rather than fuzzy-matching every 3-letter book: "like",
+// "judge" and "truth" are all one edit from one. Like a fuzzy match, these are
+// only accepted when a full, valid chapter and verse follows.
+const HEARD_AS: Record<string, string> = {
+  look: "Luke",
+  luk: "Luke",
+  jog: "Job",
+  jobe: "Job",
+  marc: "Mark",
+  mach: "Mark",
+  ax: "Acts",
+  axe: "Acts",
+  jon: "John",
+}
+
 // Singular forms are accepted ("psalm", "proverb", "1 corinthian") except
 // where the singular is an everyday word ("the number 1 reason").
 const NO_SINGULAR = new Set(["Numbers", "Acts", "Judges"])
@@ -48,6 +66,10 @@ for (const book of allBooks) {
 }
 for (const [alias, name] of Object.entries(SPOKEN_ALIASES)) {
   bookByAlias.set(alias, allBooks.find((b) => b.name === name)!)
+}
+const heardAsBook = new Map<string, BibleBook>()
+for (const [heard, name] of Object.entries(HEARD_AS)) {
+  heardAsBook.set(heard, allBooks.find((b) => b.name === name)!)
 }
 const MAX_ALIAS_TOKENS = 4
 
@@ -155,16 +177,18 @@ function resolveNumbers(book: BibleBook, chapterNums: number[], verseNums: numbe
     const verse = split < nums.length ? combine(nums.slice(split)) : undefined
     if (isValid(book, chapter, verse)) return { chapter, verse: verse ?? undefined }
   }
-  // STT glued the digits: "john 316", "psalm 1214". Only if unambiguous.
+  // The recognizer glued the digits: "john 316", "isaiah 119". Where more than
+  // one split is valid (Isaiah 119 is both 1:19 and 11:9) take the shortest
+  // chapter, because that is the one that gets glued: asked for 11:9 the
+  // recognizer writes "isaiah 11 9" — measured, it only runs the digits
+  // together when the verse is the two-digit half ("one nineteen" -> 119).
   if (nums.length === 1) {
     const digits = String(nums[0])
-    const fits: ChapterVerse[] = []
     for (let cut = 1; cut < digits.length; cut++) {
       const chapter = Number(digits.slice(0, cut))
       const verse = Number(digits.slice(cut))
-      if (digits[cut] !== "0" && isValid(book, chapter, verse)) fits.push({ chapter, verse })
+      if (digits[cut] !== "0" && isValid(book, chapter, verse)) return { chapter, verse }
     }
-    if (fits.length === 1) return fits[0]
   }
   return null
 }
@@ -221,6 +245,8 @@ function matchBook(tokens: string[], at: number): { book: BibleBook; end: number
     const book = bookByAlias.get(key)
     if (book) return { book, end: at + len }
   }
+  const heard = heardAsBook.get(tokens[at])
+  if (heard) return { book: heard, end: at + 1, fuzzy: true }
   // Fuzzy: a single word, or a numbered book ("1 thesssaloniians").
   const numbered = /^[123]$/.test(first) && tokens[at + 1] !== undefined
   const word = numbered ? tokens[at + 1] : tokens[at]
@@ -271,6 +297,80 @@ function parseCommand(tokens: string[]): VoiceIntent | null {
 }
 
 const VERSE_SOUNDALIKE_WORDS = new Set(VERSE_SOUNDALIKES.split("|"))
+// "Luke four eighteen" comes back as "Look for 18". Only applied to a bare
+// three-word reference, because "Job for 7 days" is a sentence, not Job 4:7.
+const NUMBER_SOUNDALIKES: Record<string, string> = { for: "4", fore: "4", to: "2", too: "2", won: "1", ate: "8" }
+
+// --- "switch to the Message" ------------------------------------------------
+// The recognizer mangles the trailing noun ("Translation" -> "Revelation",
+// "Version" -> "Verse") and even the verb ("Change" -> "Chapter"), so match on
+// the translation's own words and let the rest be sloppy. Measured forms are in
+// scripts/test-voice-parse.ts.
+const VERSION_CUE = /(?:^| )(switch|change|chapter|swap|read|put|show|use|give|display|set|open)(?: |$)/
+// "Berean" or "King James" in an utterance is only ever the translation, so a
+// softer lead-in will do. "Message" and "Passion" are sermon words — "let's go
+// to the message" must not change anything — so those need a real verb.
+const VERSION_CUE_SOFT = /(?:^| )(go|turn|jump|back)(?: |$)/
+const EVERYDAY_ALIASES = new Set(["message", "passion"])
+// Trailing words to ignore, including how the recognizer mishears them.
+const VERSION_TAIL = new Set([
+  "version", "versions", "verse", "verses", "revelation", "translation",
+  "translations", "bible", "please", "now", "and", "it", "instead",
+])
+// Longest first, so "new king james" wins over "king james".
+const VERSION_ALIASES: [string, string][] = [
+  ["new american standard", "NASB"],
+  ["new revised standard", "NRSV"],
+  ["contemporary english", "CEV"],
+  ["holman christian standard", "HCSB"],
+  ["christian standard", "CSB"],
+  ["new international readers", "NIrV"],
+  ["new international", "NIV"],
+  ["english standard", "ESV"],
+  ["revised standard", "RSV"],
+  ["american standard", "ASV"],
+  ["new king james", "NKJV"],
+  ["new kings james", "NKJV"],
+  ["amplified classic", "AMPC"],
+  ["berean standard", "BSB"],
+  ["young's literal", "YLT"],
+  ["youngs literal", "YLT"],
+  ["living bible", "TLB"],
+  ["god's word", "GW"],
+  ["gods word", "GW"],
+  ["new living", "NLT"],
+  ["king james", "KJV"],
+  ["kings james", "KJV"],
+  ["net bible", "NET"],
+  ["amplified", "AMP"],
+  ["message", "MSG"],
+  ["passion", "TPT"],
+  ["berean", "BSB"],
+  ["tyndale", "Tyndale"],
+  ["darby", "Darby"],
+  // Spelled out. Rarely survives the recognizer, but free to accept.
+  ...BIBLE_VERSIONS.map((v) => [v.code.toLowerCase(), v.code] as [string, string]).filter(
+    // Codes that are ordinary words would fire on ordinary speech.
+    ([code]) => !["net", "gw", "easy", "amp", "erv", "mev", "esv"].includes(code),
+  ),
+]
+
+function parseVersionCommand(tokens: string[]): string | null {
+  // Like the navigation commands: a short utterance that ends with the ask.
+  if (tokens.length > MAX_COMMAND_WORDS) return null
+  let end = tokens.length
+  while (end > 0 && VERSION_TAIL.has(tokens[end - 1])) end--
+  const text = tokens.slice(0, end).join(" ")
+  for (const [alias, code] of VERSION_ALIASES) {
+    if (text !== alias && !text.endsWith(` ${alias}`)) continue
+    // "the message of the cross" is preaching; "switch to the message" is an
+    // instruction. The verb is what separates them.
+    const before = ` ${text.slice(0, text.length - alias.length)}`
+    if (VERSION_CUE.test(before)) return code
+    return !EVERYDAY_ALIASES.has(alias) && VERSION_CUE_SOFT.test(before) ? code : null
+  }
+  return null
+}
 
 export function parseVoiceTranscript(text: string): VoiceIntent | null {
   // "John 3 phase 16": between two numbers a sound-alike can only be "verse".
@@ -278,8 +378,15 @@ export function parseVoiceTranscript(text: string): VoiceIntent | null {
     VERSE_SOUNDALIKE_WORDS.has(token) && isNumber(all[i - 1]) && isNumber(all[i + 1]) ? "verse" : token,
   )
 
+  if (tokens.length === 3 && isNumber(tokens[2]) && NUMBER_SOUNDALIKES[tokens[1]] && matchBook(tokens, 0)) {
+    tokens[1] = NUMBER_SOUNDALIKES[tokens[1]]
+  }
+
   const command = parseCommand(tokens)
   if (command) return command
+
+  const code = parseVersionCommand(tokens)
+  if (code) return { type: "version", code }
 
   // References can sit anywhere in a sentence; the last one spoken wins.
   let reference: ReferenceIntent | null = null

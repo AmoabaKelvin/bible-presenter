@@ -17,6 +17,7 @@ function show(text: string): string | null {
   if (intent.type === "reference") return `${intent.book.name} ${intent.chapter}${intent.verse ? `:${intent.verse}` : ""}`
   if (intent.type === "verse") return `verse ${intent.verse}`
   if (intent.type === "back") return "back"
+  if (intent.type === "version") return `version ${intent.code}`
   return `${intent.type} ${intent.delta > 0 ? "+1" : "-1"}`
 }
 

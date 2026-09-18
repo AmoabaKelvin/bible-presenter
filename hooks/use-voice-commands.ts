@@ -12,7 +12,9 @@ const intentKey = (intent: VoiceIntent) =>
       ? `verse ${intent.verse}`
       : intent.type === "back"
         ? "back"
-        : `${intent.type} ${intent.delta}`
+        : intent.type === "version"
+          ? `version ${intent.code}`
+          : `${intent.type} ${intent.delta}`
 
 export type AudioInput = { deviceId: string; label: string }
 

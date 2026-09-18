@@ -14,6 +14,7 @@ function show(text: string): string | null {
   }
   if (intent.type === "verse") return `verse ${intent.verse}`
   if (intent.type === "back") return "back"
+  if (intent.type === "version") return `version ${intent.code}`
   return `${intent.type} ${intent.delta > 0 ? "+1" : "-1"}`
 }
 
@@ -92,6 +93,46 @@ const cases: [string, string | null][] = [
   ["we read Romans 8:28 but look at Genesis 1:1", "Genesis 1:1"],
   ["John 3 verse 16, and then verse 17", "John 3:17"],
   ["look at verse 5", "verse 5"],
+
+  // translation switching, in the forms the recognizer actually produces
+  ["Switch to the message", "version MSG"],
+  ["Chapter to the Kings James", "version KJV"],
+  ["Read it in the New International Verse", "version NIV"],
+  ["Switch to the new living Revelation and", "version NLT"],
+  ["Use the amplified Bible", "version AMP"],
+  ["Show that in the passion Revelation", "version TPT"],
+  ["Switch to new Kings James", "version NKJV"],
+  ["Put it in the English standard verse", "version ESV"],
+  ["Switch the Revelation to the message", "version MSG"],
+  ["change to KJV", "version KJV"],
+  ["switch to the berean", "version BSB"],
+  ["Go to the Berean", "version BSB"],
+  ["turn to the king james", "version KJV"],
+  ["let us go to the message", null],
+  ["go to the passion", null],
+  // ...and the preaching it must not mistake for an instruction
+  ["In the message today God is speaking to somebody", null],
+  ["The message of the cross is foolishness to them that perish", null],
+  ["This is a living word for a living church", null],
+  ["the message", null],
+  ["let us look at the passion of the christ", null],
+  ["God gave us a new living hope", null],
+
+  // misheard book names, only accepted with a full chapter and verse
+  ["Look for 18", "Luke 4:18"],
+  ["Luke for 18", "Luke 4:18"],
+  ["Job for 7 days he sat there", null],
+  ["Look 4 18", "Luke 4:18"],
+  ["Jog 121", "Job 1:21"],
+  ["look at verse 5", "verse 5"],
+  ["take a look", null],
+
+  // glued digits: the shortest chapter wins, because that is the one the
+  // recognizer glues ("eleven nine" comes back as "11 9")
+  ["Isaiah 119", "Isaiah 1:19"],
+  ["Isaiah 118", "Isaiah 1:18"],
+  ["Psalm 119", "Psalms 119"],
+  ["Mark 435", "Mark 4:35"],
 
   // mangled by the speech model
   ["johhn chapter three verse sixteen", "John 3:16"],
