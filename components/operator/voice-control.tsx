@@ -71,8 +71,9 @@ export function VoiceStatus({
         </span>
         <a
           href={HELPER_DOWNLOAD_URL}
-          target="_blank"
-          rel="noreferrer"
+          download
+          // Not notarized by Apple, so the first launch needs the right-click.
+          title="Downloads FlowCastVoice.zip — unzip it, move it to Applications, then right-click it and choose Open the first time"
           className="shrink-0 h-6 px-2 rounded-sm border border-foreground bg-foreground text-background inline-flex items-center gap-1"
         >
           <Download className="size-3" />

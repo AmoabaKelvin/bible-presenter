@@ -2,7 +2,11 @@
 # Builds FlowCastVoice.app — the menu-bar helper users download and run.
 # Apple Silicon only: it runs Parakeet on the Neural Engine through CoreML.
 #
-# Usage: ./build-app.sh   → FlowCastVoice.app and FlowCastVoice.zip in dist/
+# The zip is copied into public/downloads/, which is where the app links to it:
+# GitHub release assets need a login once the repo is private, and a download
+# people cannot reach is worse than no button.
+#
+# Usage: ./build-app.sh   → FlowCastVoice.app and .zip in dist/, zip in public/
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -33,4 +37,7 @@ PLIST
 # It is not notarized, so the first launch still needs right-click -> Open.
 codesign --force --deep --sign - "$APP"
 ditto -c -k --keepParent "$APP" dist/FlowCastVoice.zip
-echo "built $APP ($(du -sh "$APP" | cut -f1)) and dist/FlowCastVoice.zip"
+mkdir -p ../public/downloads
+cp dist/FlowCastVoice.zip ../public/downloads/FlowCastVoice.zip
+echo "built $APP ($(du -sh "$APP" | cut -f1))"
+echo "shipped ../public/downloads/FlowCastVoice.zip ($(du -h dist/FlowCastVoice.zip | cut -f1)) — commit it to publish"

@@ -6,8 +6,10 @@ import type { VoiceWorkerRequest, VoiceWorkerResponse } from "@/lib/voice-worker
 // Nothing leaves the machine and any input device can be chosen (the PA
 // feed). The model runs in the native helper when it's there, else in-browser.
 
-export const HELPER_DOWNLOAD_URL =
-  "https://github.com/AmoabaKelvin/bible-presenter/releases/latest/download/FlowCastVoice.zip"
+// Served from our own origin rather than a GitHub release: the download has to
+// work for someone who is not signed in to GitHub, on a church Mac, possibly
+// on a private repo. Refreshed by voice-helper/build-app.sh.
+export const HELPER_DOWNLOAD_URL = "/downloads/FlowCastVoice.zip"
 
 type EngineOptions = {
   deviceId?: string
