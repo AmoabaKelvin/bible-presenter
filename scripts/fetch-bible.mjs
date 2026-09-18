@@ -1,18 +1,31 @@
-// Standalone Node ESM script that downloads the full KJV Bible (apiId
-// "englishkj") from the eightlabs API and writes it to public/bibles/kjv.json
-// so the app can ship a baked-in offline translation. No app imports — the
-// book list and chapter counts are inlined below. Throttled to ~6 concurrent
-// chapter fetches. DO NOT run casually: it makes ~1189 network requests.
+// Standalone Node ESM script that downloads a full translation from the
+// eightlabs API and writes it to public/bibles/<code>.json so the app can ship
+// it as a baked-in offline translation. No app imports — the book list and
+// chapter counts are inlined below. Throttled to ~6 concurrent chapter
+// fetches. DO NOT run casually: it makes ~1189 network requests.
 //
-// Usage: node scripts/fetch-kjv.mjs
+// NIV © 1973, 1978, 1984, 2011 by Biblica. Bundled here for personal use, the
+// same basis as the other copyrighted translations this app ships.
+//
+// Translations the API does not serve have their own script (fetch-cev.mjs,
+// fetch-tlb.mjs, fetch-msg.mjs).
+//
+// Usage: node scripts/fetch-bible.mjs [KJV|BSB|NIV]   (default KJV)
 
 import { writeFile, mkdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const BIBLE_API_BASE = "https://bible-api.eightlabs.xyz"
-const KJV_API_ID = "englishkj"
+const API_IDS = { KJV: "englishkj", BSB: "englishberean", NIV: "englishniv" }
 const CONCURRENCY = 6
+
+const VERSION = (process.argv[2] ?? "KJV").toUpperCase()
+const API_ID = API_IDS[VERSION]
+if (!API_ID) {
+  console.error(`Unknown translation ${VERSION}. Known: ${Object.keys(API_IDS).join(", ")}`)
+  process.exit(1)
+}
 
 // book name -> { apiId, chapters: [verseCount per chapter] }
 const BOOKS = [
@@ -94,7 +107,7 @@ for (const book of BOOKS) {
 
 async function fetchChapter(task) {
   const { apiId, chapter, verseCount } = task
-  const url = `${BIBLE_API_BASE}/verses/${apiId}.${chapter}.1-${verseCount}?translation=${KJV_API_ID}`
+  const url = `${BIBLE_API_BASE}/verses/${apiId}.${chapter}.1-${verseCount}?translation=${API_ID}`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
   const data = await res.json()
@@ -128,9 +141,9 @@ async function run() {
 
   const __dirname = dirname(fileURLToPath(import.meta.url))
   const outDir = join(__dirname, "..", "public", "bibles")
-  const outPath = join(outDir, "kjv.json")
+  const outPath = join(outDir, `${VERSION.toLowerCase()}.json`)
   await mkdir(outDir, { recursive: true })
-  await writeFile(outPath, JSON.stringify({ version: "KJV", chapters }))
+  await writeFile(outPath, JSON.stringify({ version: VERSION, chapters }))
   console.log(`wrote ${outPath} (${Object.keys(chapters).length} chapters)`)
 }
 

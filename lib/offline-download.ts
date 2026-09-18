@@ -21,6 +21,7 @@ const CONCURRENCY = 6
 // `?v=` whenever a bundle file is regenerated.
 export const BUNDLED_VERSIONS: Record<string, string> = {
   KJV: "/bibles/kjv.json",
+  NIV: "/bibles/niv.json",
   BSB: "/bibles/bsb.json",
   CEV: "/bibles/cev.json",
   TLB: "/bibles/tlb.json",
