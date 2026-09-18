@@ -66,6 +66,8 @@ Security: loopback only, and the WebSocket handshake rejects any Origin other th
 
 **First run on the deployed site asks for permission.** Chrome gates a loopback connection from a public HTTPS page behind Local Network Access. Until it is answered the socket simply sits there — 34 s before Chrome gives up — and no amount of waiting in our code helps, so `connectHelper` reads `navigator.permissions.query({name: "local-network-access"})` and waits a minute while the prompt is up, 4 s otherwise, skipping the helper entirely when it has been denied. Once granted, the helper connects in **7 ms from production**. Measured, not assumed: before the prompt was answered the same connection errored after 34 s.
 
+So the deployed site asks for two permissions the first time voice is used — local network access (to reach the helper) and the microphone. Both are one-time, per browser. The strip names whichever one it is waiting for.
+
 Not done yet: launch at login, Windows equivalent, fine-tuned weights (would be a model-file swap inside the helper).
 
 ### One app instead of two — spiked, works

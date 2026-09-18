@@ -58,18 +58,19 @@ let helper: Backend | null = null
 const HELPER_CONNECT_MS = 4000
 const HELPER_PERMISSION_MS = 60000
 
-async function localNetworkPermission(): Promise<PermissionState | null> {
+async function permissionState(name: string): Promise<PermissionState | null> {
   try {
-    // Chrome-only, and only on a secure origin that isn't itself local.
-    return (await navigator.permissions.query({ name: "local-network-access" as PermissionName })).state
+    return (await navigator.permissions.query({ name: name as PermissionName })).state
   } catch {
+    // Not every browser knows every permission; treat it as unknown.
     return null
   }
 }
 
 async function connectHelper(onStatus: (status: string) => void): Promise<Backend | null> {
   if (helper) return helper
-  const permission = await localNetworkPermission()
+  // Chrome-only, and only on a secure origin that isn't itself local.
+  const permission = await permissionState("local-network-access")
   if (permission === "denied") return null
   if (permission === "prompt") onStatus("Allow local network access to use the voice helper…")
   const timeout = permission === "prompt" ? HELPER_PERMISSION_MS : HELPER_CONNECT_MS
@@ -181,7 +182,10 @@ export function startLocalEngine({
       onNeedsHelper()
       return
     }
-    // Ask for the mic while the model loads.
+    // Ask for the mic while the model loads. Say so, or the last status
+    // ("helper is loading its model") sits there looking stuck while the
+    // browser waits for the operator to allow the microphone.
+    if ((await permissionState("microphone")) === "prompt") onStatus("Allow microphone access…")
     const [stream, backend] = await Promise.all([
       navigator.mediaDevices.getUserMedia({
         audio: {
