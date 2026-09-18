@@ -11,8 +11,10 @@ import { SongsPane } from "@/components/operator/songs-pane"
 import { MediaPane } from "@/components/operator/media-pane"
 import { DictionaryPane } from "@/components/operator/dictionary-pane"
 import { RightRail } from "@/components/operator/right-rail"
+import { VoiceButton, VoiceStatus } from "@/components/operator/voice-control"
 import type { Mode } from "@/components/operator/types"
 import { useOperatorBible } from "@/hooks/use-operator-bible"
+import { useVoiceCommands } from "@/hooks/use-voice-commands"
 import { useOperatorKeyboardShortcuts } from "@/hooks/use-operator-keyboard-shortcuts"
 import { useOperatorMedia } from "@/hooks/use-operator-media"
 import { useOperatorMusic } from "@/hooks/use-operator-music"
@@ -26,6 +28,8 @@ import { useWarmSemanticIndex } from "@/hooks/use-warm-semantic-index"
 import { useWarmBundledBibles } from "@/hooks/use-warm-bundled-bibles"
 import { DEFAULT_PRESENTATION, mergePresentation, type PresentationSettings } from "@/lib/presentation-settings"
 import type { ShowSnapshot } from "@/components/operator/types"
+import { getNextChapterRef, getPrevChapterRef, type BibleBook } from "@/lib/bible-data"
+import type { VoiceIntent } from "@/lib/voice-parse"
 
 const VERSION_KEY = "bibleVersion"
 
@@ -33,6 +37,10 @@ export default function OperatorPage() {
   const [mode, setMode] = usePersistedState<Mode>("workspace:mode", "bible")
   const [fontSize, setFontSize] = usePersistedState<FontSize>("workspace:fontSize", "extra-large")
   const [version, setVersion] = usePersistedState(VERSION_KEY, "KJV")
+  // Off = spoken scriptures land in preview and wait for Space. A misheard
+  // verse on the projector mid-sermon costs more than one keypress.
+  const [voiceAutoProject, setVoiceAutoProject] = usePersistedState("voice:autoProject", false)
+  const [voiceDeviceId, setVoiceDeviceId] = usePersistedState("voice:deviceId", "")
   const [storedPresentation, setPresentation] = usePersistedState<PresentationSettings>(
     "presentation",
     DEFAULT_PRESENTATION,
@@ -265,6 +273,34 @@ export default function OperatorPage() {
   const liveBackground = background.resolveTarget(liveVerses[0]?.kind)
   const defaultBackground = background.resolveTarget(undefined)
 
+  // Where voice jumped *from*, so "go back" can return there.
+  const voiceBackStack = useRef<{ book: BibleBook; chapter: number; verse: number }[]>([])
+  const handleVoiceIntent = useCallback(
+    (intent: VoiceIntent) => {
+      const jump = voiceAutoProject ? handleJumpProject : handleJumpSelect
+      const here =
+        selectedBook && selectedChapter ? { book: selectedBook, chapter: selectedChapter, verse: selectedVerse ?? 1 } : null
+      if (intent.type === "reference") {
+        if (here) voiceBackStack.current.push(here)
+        jump(intent.book, intent.chapter, intent.verse ?? 1)
+      } else if (intent.type === "back") {
+        const previous = voiceBackStack.current.pop()
+        if (previous) jump(previous.book, previous.chapter, previous.verse)
+      } else if (intent.type === "step") {
+        stepSelectedVerse(intent.delta, voiceAutoProject)
+      } else if (here) {
+        if (intent.type === "verse") {
+          if (intent.verse <= here.book.chapters[here.chapter - 1]) jump(here.book, here.chapter, intent.verse)
+          return
+        }
+        const ref = (intent.delta > 0 ? getNextChapterRef : getPrevChapterRef)(here.book, here.chapter)
+        if (ref) jump(ref.book, ref.chapter, 1)
+      }
+    },
+    [handleJumpProject, handleJumpSelect, selectedBook, selectedChapter, selectedVerse, stepSelectedVerse, voiceAutoProject],
+  )
+  const voice = useVoiceCommands(handleVoiceIntent, voiceDeviceId)
+
   useOperatorKeyboardShortcuts({
     mode,
     selectedVerse,
@@ -407,6 +443,24 @@ export default function OperatorPage() {
       </main>
 
       <RightRail
+        voiceButton={
+          <VoiceButton supported={voice.supported} listening={voice.listening} onToggle={voice.toggle} />
+        }
+        voiceStatus={
+          <VoiceStatus
+            listening={voice.listening}
+            status={voice.status}
+            backend={voice.backend}
+            inputs={voice.inputs}
+            deviceId={voiceDeviceId}
+            onDeviceChange={setVoiceDeviceId}
+            heard={voice.heard}
+            lastAction={voice.lastAction}
+            error={voice.error}
+            autoProject={voiceAutoProject}
+            onAutoProjectChange={setVoiceAutoProject}
+          />
+        }
         previewVerses={previewVerses}
         liveVerses={liveVerses}
         previewMediaUrl={previewMedia?.url ?? null}

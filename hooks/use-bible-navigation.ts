@@ -18,15 +18,24 @@ type BibleWorkspace = {
   rangeEndVerse?: number | null
 }
 
+// Stable reference for "this chapter's verses aren't loaded yet".
+const EMPTY_VERSES: ChapterVerse[] = []
+
 type UseBibleNavigationOptions = {
   version: string
+  // Verses for `loadedBook`/`loadedChapter`, which trail the selection held
+  // here by a render (the loader is fed from this hook's state).
   chapterVerses: ChapterVerse[]
+  loadedBook: BibleBook | null
+  loadedChapter: number | null
   setPreviewVerses: Dispatch<SetStateAction<SelectedVerse[]>>
 }
 
 export function useBibleNavigation({
   version,
-  chapterVerses,
+  chapterVerses: loadedVerses,
+  loadedBook,
+  loadedChapter,
   setPreviewVerses,
 }: UseBibleNavigationOptions) {
   const [selectedBook, setSelectedBook] = useState<BibleBook | null>(null)
@@ -37,6 +46,12 @@ export function useBibleNavigation({
   const [pendingVerseSelection, setPendingVerseSelection] = useState<number | null>(null)
   const [pendingProjectVerse, setPendingProjectVerse] = useState<PendingProjectVerse>(null)
   const [workspaceLoaded, setWorkspaceLoaded] = useState(false)
+
+  // Never pair the new selection with the old chapter's verses: a jump
+  // straight to another chapter would label its slide with the right
+  // reference and the previous chapter's text.
+  const chapterVerses =
+    loadedBook === selectedBook && loadedChapter === selectedChapter ? loadedVerses : EMPTY_VERSES
 
   useEffect(() => {
     try {
@@ -147,6 +162,7 @@ export function useBibleNavigation({
   }, [handleReferenceChange, selectedBook, selectedChapter])
 
   return {
+    chapterVerses,
     selectedBook,
     selectedChapter,
     selectedVerse,

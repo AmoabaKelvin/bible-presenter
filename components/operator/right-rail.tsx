@@ -9,12 +9,14 @@ import { PresentationSettingsDialog } from "./presentation-settings-dialog"
 import type { PresentationSettings } from "@/lib/presentation-settings"
 import type { BackgroundTarget } from "@/lib/background-config"
 import type { ResolvedBackground } from "@/hooks/use-operator-background"
-import type { RefObject } from "react"
+import type { ReactNode, RefObject } from "react"
 import type { MusicState } from "@/lib/music-protocol"
 import type { SpotifyAuthStatus } from "@/lib/spotify-music"
 import type { YouTubeAuthStatus, YouTubePlaylistSummary, YouTubePlaylistTrack } from "@/lib/youtube-account"
 
 interface RightRailProps {
+  voiceButton: ReactNode
+  voiceStatus: ReactNode
   previewVerses: SelectedVerse[]
   liveVerses: SelectedVerse[]
   previewMediaUrl: string | null
@@ -81,6 +83,8 @@ const FONT_SIZES: { value: FontSize; label: string }[] = [
 ]
 
 export function RightRail({
+  voiceButton,
+  voiceStatus,
   previewVerses,
   liveVerses,
   previewMediaUrl,
@@ -157,6 +161,7 @@ export function RightRail({
               </button>
             ))}
           </div>
+          {voiceButton}
           <BackgroundPopover
             targets={backgroundTargets}
             onColorChange={onLayerColorChange}
@@ -175,6 +180,7 @@ export function RightRail({
           />
         </div>
       </div>
+      {voiceStatus}
 
       <SlidePreviewPanel
         verses={previewVerses}

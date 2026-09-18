@@ -4,7 +4,7 @@ import { useCallback, useEffect, type Dispatch, type SetStateAction } from "reac
 import type { SelectedVerse } from "@/components/slide-stage"
 import type { ChapterVerse } from "@/components/operator/chapter-reader"
 import { findVerse } from "@/lib/bible-cache"
-import type { BibleBook } from "@/lib/bible-data"
+import { getNextChapterRef, getPrevChapterRef, type BibleBook } from "@/lib/bible-data"
 
 type PendingProjectVerse = { book: BibleBook; chapter: number; verse: number } | null
 
@@ -24,6 +24,8 @@ type UseBibleVerseActionsOptions = {
   setRangeStartVerse: Dispatch<SetStateAction<number | null>>
   setRangeEndVerse: Dispatch<SetStateAction<number | null>>
   setPendingProjectVerse: Dispatch<SetStateAction<PendingProjectVerse>>
+  handleJumpSelect: (book: BibleBook, chapter: number, verse: number) => void
+  handleJumpProject: (book: BibleBook, chapter: number, verse: number) => void
 }
 
 export function useBibleVerseActions({
@@ -42,6 +44,8 @@ export function useBibleVerseActions({
   setRangeStartVerse,
   setRangeEndVerse,
   setPendingProjectVerse,
+  handleJumpSelect,
+  handleJumpProject,
 }: UseBibleVerseActionsOptions) {
   const handleSelectVerse = useCallback(
     (verse: number, shiftKey: boolean) => {
@@ -73,21 +77,37 @@ export function useBibleVerseActions({
   )
 
   const stepSelectedVerse = useCallback(
-    (delta: number) => {
+    (delta: number, project = false) => {
       if (!selectedBook || !selectedChapter || selectedVerse === null) return
       // Step between entries, not verse numbers, so a paragraph entry
       // (e.g. 14-18) is one step and printed order is kept.
       const current = findVerse(chapterVerses, selectedVerse)
-      const target = current && chapterVerses[chapterVerses.indexOf(current) + delta]?.number
-      if (target === undefined) return
+      if (!current) return
+      const target = chapterVerses[chapterVerses.indexOf(current) + delta]?.number
+      if (target === undefined) {
+        // Off the end of the chapter: roll into the neighbouring one.
+        const ref =
+          delta > 0
+            ? getNextChapterRef(selectedBook, selectedChapter)
+            : getPrevChapterRef(selectedBook, selectedChapter)
+        if (!ref) return
+        const verse = delta > 0 ? 1 : ref.book.chapters[ref.chapter - 1]
+        ;(project ? handleJumpProject : handleJumpSelect)(ref.book, ref.chapter, verse)
+        return
+      }
       setSelectedVerse(target)
       setRangeStartVerse(target)
       setRangeEndVerse(null)
-      setPreviewVerses(buildSelectedVerses(target, target))
+      const list = buildSelectedVerses(target, target)
+      if (project) projectVerses(list, true)
+      else setPreviewVerses(list)
     },
     [
       buildSelectedVerses,
       chapterVerses,
+      handleJumpProject,
+      handleJumpSelect,
+      projectVerses,
       selectedBook,
       selectedChapter,
       selectedVerse,

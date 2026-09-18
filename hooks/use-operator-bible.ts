@@ -47,7 +47,7 @@ type UseOperatorBibleResult = {
   goToReference: (reference: string) => void
   handleSelectVerse: (verse: number, shiftKey: boolean) => void
   handleDoubleClickVerse: (verse: number) => void
-  stepSelectedVerse: (delta: number) => void
+  stepSelectedVerse: (delta: number, project?: boolean) => void
   goToPreviousChapter: () => void
   goToNextChapter: () => void
   queueVerseFromChapter: (verseNumber: number) => void
@@ -68,12 +68,13 @@ export function useOperatorBible({
 }: UseOperatorBibleOptions): UseOperatorBibleResult {
   const [selectedBookForChapter, setSelectedBookForChapter] = useState<BibleBook | null>(null)
   const [selectedChapterForChapter, setSelectedChapterForChapter] = useState<number | null>(null)
-  const { chapterVerses, chapterLoading, chapterError } = useBibleChapter({
+  const { chapterVerses: loadedVerses, chapterLoading, chapterError } = useBibleChapter({
     version,
     selectedBook: selectedBookForChapter,
     selectedChapter: selectedChapterForChapter,
   })
   const {
+    chapterVerses,
     selectedBook,
     selectedChapter,
     selectedVerse,
@@ -92,7 +93,9 @@ export function useOperatorBible({
     goToNextChapter,
   } = useBibleNavigation({
     version,
-    chapterVerses,
+    chapterVerses: loadedVerses,
+    loadedBook: selectedBookForChapter,
+    loadedChapter: selectedChapterForChapter,
     setPreviewVerses,
   })
 
@@ -155,6 +158,8 @@ export function useOperatorBible({
     setRangeStartVerse,
     setRangeEndVerse,
     setPendingProjectVerse,
+    handleJumpSelect,
+    handleJumpProject,
   })
 
   const { previewSearchResult, projectSearchResult, queueSearchResult } = useBibleSearchActions({
