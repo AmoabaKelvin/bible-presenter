@@ -51,9 +51,36 @@ type Backend = {
 const HELPER_URL = "ws://127.0.0.1:47821"
 let helper: Backend | null = null
 
-function connectHelper(onStatus: (status: string) => void): Promise<Backend | null> {
-  if (helper) return Promise.resolve(helper)
+// A running helper answers in milliseconds. The exception is the very first
+// connection from the deployed site: Chrome asks permission to reach the local
+// network, and until that is answered the socket just sits there (~34 s before
+// it gives up on its own), so the wait depends on whether it has been granted.
+const HELPER_CONNECT_MS = 4000
+const HELPER_PERMISSION_MS = 60000
+
+async function localNetworkPermission(): Promise<PermissionState | null> {
+  try {
+    // Chrome-only, and only on a secure origin that isn't itself local.
+    return (await navigator.permissions.query({ name: "local-network-access" as PermissionName })).state
+  } catch {
+    return null
+  }
+}
+
+async function connectHelper(onStatus: (status: string) => void): Promise<Backend | null> {
+  if (helper) return helper
+  const permission = await localNetworkPermission()
+  if (permission === "denied") return null
+  if (permission === "prompt") onStatus("Allow local network access to use the voice helper…")
+  const timeout = permission === "prompt" ? HELPER_PERMISSION_MS : HELPER_CONNECT_MS
   return new Promise((resolve) => {
+    let settled = false
+    const give = (backend: Backend | null) => {
+      if (settled) return
+      settled = true
+      resolve(backend)
+    }
+    setTimeout(() => give(null), timeout)
     const listeners = new Set<(result: BackendResult) => void>()
     const socket = new WebSocket(HELPER_URL)
     socket.binaryType = "arraybuffer"
@@ -65,7 +92,7 @@ function connectHelper(onStatus: (status: string) => void): Promise<Backend | nu
       const wasLive = helper !== null
       helper = null
       if (wasLive) listeners.forEach((listener) => listener({ id: -1, text: "", ms: 0, error: "Voice helper disconnected." }))
-      else resolve(null)
+      else give(null)
     }
     socket.onmessage = (event) => {
       const message = JSON.parse(String(event.data))
@@ -86,7 +113,7 @@ function connectHelper(onStatus: (status: string) => void): Promise<Backend | nu
             return () => listeners.delete(listener)
           },
         }
-        resolve(helper)
+        give(helper)
       } else {
         const result: BackendResult = { id: message.id, text: message.text ?? "", ms: message.ms ?? 0, error: message.message }
         listeners.forEach((listener) => listener(result))
