@@ -35,14 +35,27 @@ const ORT_FILES = [
   "ort-wasm-simd-threaded.asyncify.mjs",
 ]
 
+// Cloudflare Workers refuses to serve a static asset over 25 MiB — it is
+// dropped at deploy and 404s in production — so a bigger file ships as
+// .part0, .part1 … which lib/semantic-search.ts stitches back together.
+const PART_BYTES = 24 * 1024 * 1024
+
 async function download(rel) {
   const res = await fetch(`${HF}/${rel}`)
   if (!res.ok) throw new Error(`${res.status} fetching ${rel}`)
   const buf = Buffer.from(await res.arrayBuffer())
   const out = join(modelDir, rel)
   await mkdir(dirname(out), { recursive: true })
-  await writeFile(out, buf)
-  console.log(`  model: ${rel} (${(buf.length / 1e6).toFixed(1)} MB)`)
+  if (buf.length <= PART_BYTES) {
+    await writeFile(out, buf)
+    console.log(`  model: ${rel} (${(buf.length / 1e6).toFixed(1)} MB)`)
+    return
+  }
+  const parts = Math.ceil(buf.length / PART_BYTES)
+  for (let i = 0; i < parts; i++) {
+    await writeFile(`${out}.part${i}`, buf.subarray(i * PART_BYTES, (i + 1) * PART_BYTES))
+  }
+  console.log(`  model: ${rel} (${(buf.length / 1e6).toFixed(1)} MB → ${parts} parts)`)
 }
 
 async function run() {

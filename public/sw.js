@@ -5,7 +5,8 @@
 //   • bible-api.eightlabs.xyz   → stale-while-revalidate (chapters/search survive a drop)
 //   • everything else           → not intercepted (YouTube, Spotify, Google OAuth, etc.)
 
-const VERSION = "flowcast-v2"
+// Bump to invalidate every cache, including the unhashed bibles/dictionaries.
+const VERSION = "flowcast-v4"
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const API_CACHE = `${VERSION}-bible-api`
@@ -47,6 +48,11 @@ function isStaticAsset(url) {
   return (
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/dictionaries/") ||
+    // Verse vectors for meaning-search and voice quote detection (~80 MB).
+    // Too big to precache, so they are cache-first at runtime: offline after
+    // the first load, and no re-download every session. They are not
+    // content-hashed, so a rebuilt index needs the VERSION bump above.
+    url.pathname.startsWith("/bibles/embeddings/") ||
     // Self-hosted embedding model + ONNX-runtime WASM: cache-first so the
     // Bible meaning-search keeps working offline after the first (online) load.
     url.pathname.startsWith("/models/") ||

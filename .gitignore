@@ -47,3 +47,8 @@ next-env.d.ts
 .open-next
 .env.cf-migration
 .wrangler/
+scripts/stt-eval/clips/
+public/_stt/
+
+# Split into .part* for the Cloudflare 25 MiB asset cap (scripts/fetch-model.mjs)
+public/models/**/model_quantized.onnx
