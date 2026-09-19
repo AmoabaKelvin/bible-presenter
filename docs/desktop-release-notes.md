@@ -14,4 +14,5 @@ The first time you turn on the microphone it downloads the speech models (needs 
 - Say a reference ("John three sixteen") or quote a verse, even a few words of one ("he gave gifts unto men"), and it goes to preview or straight to live.
 - YouTube and Spotify login open in your browser. Spotify playback inside the app is untested.
 - Media: add videos and upload whole folders (both were failing in 0.1.1 and earlier).
+- Media: Remove acts on everything you have selected, deleting a folder deletes what is in it (after asking), and the sort order stays put when you switch tabs.
 - FlowCast now updates itself: a new release downloads in the background and is installed when you quit, or use FlowCast → Check for Updates…. This is the last version you install by hand. Until the app is notarized, macOS asks again for Keychain and microphone access after each update.
