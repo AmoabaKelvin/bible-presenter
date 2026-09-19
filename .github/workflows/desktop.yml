@@ -32,8 +32,12 @@ jobs:
           FLOWCAST_GOOGLE_CLIENT_ID: ${{ vars.FLOWCAST_GOOGLE_CLIENT_ID }}
           FLOWCAST_GOOGLE_CLIENT_SECRET: ${{ secrets.FLOWCAST_GOOGLE_DESKTOP_CLIENT_SECRET }}
       - run: bun run desktop:package
+        if: ${{ !inputs.notarize }}
+      # Separate step: an unset signing secret arrives as "", which electron-builder reads as a certificate path.
+      - run: bun run desktop:package
+        if: ${{ inputs.notarize }}
         env:
-          FLOWCAST_RELEASE: ${{ inputs.notarize && '1' || '0' }}
+          FLOWCAST_RELEASE: '1'
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
