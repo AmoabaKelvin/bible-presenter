@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { authorizedRequest, isOAuthCallback, sameOrigin, ORIGIN } = require('./security.cjs')
+const { authorizedRequest, fileReadAllowed, isOAuthCallback, sameOrigin, ORIGIN } = require('./security.cjs')
 
 test('local server requires its private token, exact host, and trusted origin', () => {
   const request = { headers: { host: '127.0.0.1:47820', 'x-flowcast-session': 'secret' } }
@@ -27,4 +27,12 @@ test('native bridge origin checks reject lookalikes and alternate ports', () => 
   for (const url of ['file:///etc/passwd', 'https://127.0.0.1:47820', 'http://127.0.0.1:47821', 'http://127.0.0.1.evil.example:47820', 'invalid']) {
     assert.equal(sameOrigin(url), false)
   }
+})
+
+test('picked videos and folders can be read, never written, and only by the app', () => {
+  assert.equal(fileReadAllowed(`${ORIGIN}/`, { fileAccessType: 'readable', isDirectory: false }), true)
+  assert.equal(fileReadAllowed(`${ORIGIN}/`, { fileAccessType: 'readable', isDirectory: true }), true)
+  assert.equal(fileReadAllowed(`${ORIGIN}/`, { fileAccessType: 'writable', isDirectory: false }), false)
+  assert.equal(fileReadAllowed('https://untrusted.example/', { fileAccessType: 'readable' }), false)
+  assert.equal(fileReadAllowed(`${ORIGIN}/`, undefined), false)
 })

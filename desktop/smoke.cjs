@@ -46,6 +46,29 @@ module.exports = async function smoke({ windows, token }) {
   assert.equal(await output.executeJavaScript('window.flowcastDesktop.setFullscreen(true)'), true)
   assert.equal(await output.executeJavaScript('window.flowcastDesktop.getFullscreen()'), true)
   await output.executeJavaScript('window.flowcastDesktop.setFullscreen(false)')
+  // Videos and uploaded folders are read through file handles. Dropping them yields the same
+  // handles as the pickers, without a native dialog.
+  const artifacts = path.join(app.getPath('temp'), 'flowcast-desktop-smoke')
+  // Not under the profile folder: Chromium hides that from web content.
+  const mediaDir = await fs.mkdtemp(path.join(app.getPath('temp'), 'flowcast-smoke-media-'))
+  await fs.writeFile(path.join(mediaDir, 'clip.mp4'), 'video')
+  await operator.executeJavaScript(`window.smokeDrop = new Promise((resolve) => {
+    addEventListener('dragover', (event) => event.preventDefault(), true)
+    addEventListener('drop', async (event) => {
+      event.preventDefault(); event.stopPropagation()
+      try {
+        const [file, folder] = await Promise.all([...event.dataTransfer.items].map((item) => item.getAsFileSystemHandle()))
+        const names = []
+        for await (const entry of folder.values()) names.push(entry.name)
+        resolve([(await file.getFile()).size, names.join()])
+      } catch (error) { resolve(String(error)) }
+    }, true)
+  }); true`)
+  operator.debugger.attach()
+  const data = { items: [], files: [path.join(mediaDir, 'clip.mp4'), mediaDir], dragOperationsMask: 1 }
+  for (const type of ['dragEnter', 'dragOver', 'drop']) await operator.debugger.sendCommand('Input.dispatchDragEvent', { type, x: 300, y: 300, data })
+  operator.debugger.detach()
+  assert.deepEqual(await operator.executeJavaScript('window.smokeDrop'), [5, 'clip.mp4'])
   // Exercise the real bundled Swift listener without triggering a model download.
   const endpoint = await operator.executeJavaScript('window.flowcastDesktop.connectVoice()')
   const socketResult = await operator.executeJavaScript(`new Promise((resolve, reject) => {
@@ -70,7 +93,6 @@ module.exports = async function smoke({ windows, token }) {
   // A few words out of a verse are found by their wording, not their meaning.
   const fragment = await operator.executeJavaScript(`window.flowcastMatchQuote('he gave gifts unto men')`)
   assert.equal(fragment?.reference, 'Ephesians 4:8')
-  const artifacts = path.join(app.getPath('temp'), 'flowcast-desktop-smoke')
   await fs.writeFile(path.join(artifacts, 'operator.png'), (await operator.capturePage()).toPNG())
   await fs.writeFile(path.join(artifacts, 'output.png'), (await output.capturePage()).toPNG())
   const closed = once(windows.output(), 'closed')
@@ -83,5 +105,5 @@ module.exports = async function smoke({ windows, token }) {
   await waitFor(operator, '!!window.flowcastDesktop && document.querySelectorAll("button").length > 5')
   assert.equal(await operator.executeJavaScript('localStorage.getItem("desktop-smoke-persistence")'), 'saved')
   assert.equal(await operator.executeJavaScript('navigator.serviceWorker.getRegistrations().then(items => items.length)'), 0)
-  console.log(`Desktop smoke passed: private server, OAuth callback rejection, renderer isolation, live projection, fullscreen, Swift authentication, reload persistence. Screenshots: ${artifacts}`)
+  console.log(`Desktop smoke passed: private server, OAuth callback rejection, renderer isolation, live projection, media file handles, fullscreen, Swift authentication, reload persistence. Screenshots: ${artifacts}`)
 }

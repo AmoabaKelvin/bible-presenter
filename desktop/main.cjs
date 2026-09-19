@@ -2,9 +2,10 @@ const { app, BrowserWindow, ipcMain, session, utilityProcess, dialog, systemPref
 const path = require('node:path')
 const fs = require('node:fs')
 const { randomBytes } = require('node:crypto')
-const { PORT, ORIGIN, sameOrigin } = require('./security.cjs')
+const { PORT, ORIGIN, sameOrigin, fileReadAllowed } = require('./security.cjs')
 const { createWindows } = require('./windows.cjs')
 const { createVoice } = require('./voice.cjs')
+const { createUpdater } = require('./updater.cjs')
 
 app.setName('FlowCast')
 const smoke = process.argv.includes('--smoke-test')
@@ -12,7 +13,9 @@ if (smoke) app.setPath('userData', path.join(app.getPath('temp'), 'flowcast-desk
 let server
 let voice
 let windows
+let updater
 let quitting = false
+let restartForUpdate = false
 
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
@@ -51,8 +54,8 @@ async function start() {
     done({ requestHeaders: { ...details.requestHeaders, 'X-FlowCast-Session': token } })
   })
   desktopSession.setPermissionCheckHandler((contents, permission, origin, details) => {
+    if (permission === 'fileSystem') return fileReadAllowed(origin, details)
     if (!contents || !sameOrigin(origin)) return false
-    if (permission === 'fileSystem') return details.fileAccessType === 'readable' && !details.isDirectory
     if (permission === 'media') return details.mediaType !== 'video'
     return ['clipboard-sanitized-write', 'fullscreen', 'screen-wake-lock', 'persistent-storage', 'loopback-network', 'local-network-access', 'mediaKeySystem'].includes(permission)
   })
@@ -62,9 +65,11 @@ async function start() {
     if (permission === 'media') {
       if (details.mediaTypes?.some((type) => type !== 'audio')) return done(false)
       void systemPreferences.askForMediaAccess('microphone').then(done).catch(() => done(false))
-    } else if (permission === 'fileSystem') done(details.fileAccessType === 'readable' && !details.isDirectory)
+    } else if (permission === 'fileSystem') done(fileReadAllowed(details.requestingUrl, details))
     else done(['fullscreen', 'clipboard-sanitized-write', 'screen-wake-lock', 'persistent-storage', 'loopback-network', 'local-network-access', 'mediaKeySystem'].includes(permission))
   })
+  // Chromium refuses Desktop, Documents, Movies and similar folders unless the app answers; unanswered, the picker hangs.
+  desktopSession.on('file-system-access-restricted', (_event, details, respond) => respond(sameOrigin(details.origin) ? 'allow' : 'deny'))
   let clients = {}
   const clientFile = path.join(resources, 'oauth-clients.json')
   if (fs.existsSync(clientFile)) clients = JSON.parse(fs.readFileSync(clientFile, 'utf8'))
@@ -125,14 +130,39 @@ async function start() {
     if (trustedWindow(event) !== windows.operator()) throw new Error('Only the operator can use voice.')
     return voice.connect()
   })
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { role: 'appMenu' }, { role: 'editMenu' },
+  let checking = false
+  const setMenu = () => Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: 'FlowCast', submenu: [
+      { role: 'about' },
+      { label: checking ? 'Checking for Updates…' : updater.staged() ? `Restart to Update to ${updater.staged().version}` : 'Check for Updates…',
+        enabled: !checking, click: () => void checkForUpdates() },
+      { type: 'separator' }, { role: 'services' }, { type: 'separator' },
+      { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' },
+    ] },
+    { role: 'editMenu' },
     { label: 'Presentation', submenu: [
       { label: 'Open output…', accelerator: 'CmdOrCtrl+Shift+P', click: () => void windows.openOutput() },
       { label: 'Close output', click: () => windows.output()?.close() },
     ] },
     { role: 'windowMenu' },
   ]))
+  // Only ever asked from the menu, so a prompt cannot interrupt a service.
+  async function checkForUpdates() {
+    checking = true; setMenu()
+    let result
+    try { result = await updater.check() } catch (error) { result = error }
+    checking = false; setMenu()
+    const ask = (options) => dialog.showMessageBox(windows.operator() ?? undefined, options)
+    if (result instanceof Error) return ask({ type: 'error', message: 'Unable to update FlowCast', detail: result.message })
+    if (!result) return ask({ message: 'FlowCast is up to date', detail: `Version ${app.getVersion()} is the newest release.` })
+    const { response } = await ask({ message: `FlowCast ${result.version} is ready`,
+      detail: 'Restart to finish updating, or keep working and it will be installed when you quit.',
+      buttons: ['Restart now', 'Later'], defaultId: 0, cancelId: 1 })
+    if (response === 0) { restartForUpdate = true; app.quit() }
+  }
+  updater = createUpdater({ app, userData, onState: setMenu })
+  setMenu()
+  if (!smoke) updater.start()
   await windows.openOperator()
   if (smoke) {
     try { await require('./smoke.cjs')({ windows, token, session: desktopSession }); app.quit() }
@@ -143,4 +173,4 @@ async function start() {
 app.on('activate', () => { if (windows) void windows.openOperator() })
 app.on('window-all-closed', () => app.quit())
 app.on('before-quit', () => { quitting = true; voice?.stop(); server?.kill() })
-app.on('will-quit', () => { voice?.stop(); server?.kill() })
+app.on('will-quit', () => { voice?.stop(); server?.kill(); updater?.installOnQuit({ relaunch: restartForUpdate }) })

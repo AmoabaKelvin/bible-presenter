@@ -8,6 +8,12 @@ function sameOrigin(value) {
   try { return new URL(value).origin === ORIGIN } catch { return false }
 }
 
+// Media is read through picked file and folder handles. Electron re-checks a handle's
+// grant with no webContents, so this must be decided from the origin alone.
+function fileReadAllowed(origin, details) {
+  return sameOrigin(origin) && details?.fileAccessType === 'readable'
+}
+
 function authorizedRequest(request, token) {
   if (request.headers.host !== `127.0.0.1:${PORT}`) return false
   if (request.headers.origin && request.headers.origin !== ORIGIN) return false
@@ -25,4 +31,4 @@ function isOAuthCallback(request) {
     && /^[a-f0-9]{48}$/.test(url.searchParams.get('state') || '')
 }
 
-module.exports = { PORT, ORIGIN, sameOrigin, authorizedRequest, isOAuthCallback }
+module.exports = { PORT, ORIGIN, sameOrigin, fileReadAllowed, authorizedRequest, isOAuthCallback }
