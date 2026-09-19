@@ -129,14 +129,14 @@ export function VoiceStatus({
       <button
         onClick={() => onAutoProjectChange(!autoProject)}
         aria-pressed={autoProject}
-        title="Send spoken scriptures straight to live instead of preview"
+        title={autoProject ? "Spoken scriptures go straight to the audience. Click to send them to preview first." : "Spoken scriptures wait in preview. Click to send them straight to the audience."}
         className={`shrink-0 h-6 px-2 rounded-sm border transition-colors ${
           autoProject
             ? "bg-foreground text-background border-foreground"
             : "border-border text-muted-foreground hover:text-foreground hover:bg-accent"
         }`}
       >
-        Auto-live
+        {autoProject ? "Voice → Live" : "Voice → Preview"}
       </button>
     </div>
   )
