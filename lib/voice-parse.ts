@@ -52,6 +52,8 @@ const HEARD_AS: Record<string, string> = {
   ax: "Acts",
   axe: "Acts",
   jon: "John",
+  hosier: "Hosea",
+  number: "Numbers",
 }
 
 // Singular forms are accepted ("psalm", "proverb", "1 corinthian") except
