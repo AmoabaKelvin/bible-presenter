@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { pipeline } from "@huggingface/transformers"
-import { pickQuote, stripLeadIn, type VerseIndex } from "@/lib/voice-quote"
+import { buildVerbatimIndex, pickQuote, pickVerbatim, stripLeadIn, type VerseIndex } from "@/lib/voice-quote"
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "bibles", "embeddings")
 const meta = JSON.parse(await readFile(join(dir, "meta.json"), "utf8"))
@@ -49,6 +49,15 @@ for (const version of ["bsb", "kjv", "niv"]) {
     console.log(`(no ${version} index)`)
   }
 }
+const kjv: { chapters: Record<string, { number: number; text: string }[]> } = JSON.parse(
+  await readFile(join(dir, "..", "kjv.json"), "utf8"),
+)
+const verbatim = buildVerbatimIndex(
+  Object.entries(kjv.chapters).flatMap(([key, verses]) => {
+    const at = key.lastIndexOf(":")
+    return verses.map((verse) => ({ reference: `${key.slice(0, at)} ${key.slice(at + 1)}:${verse.number}`, text: verse.text }))
+  }),
+)
 const extractor = await pipeline("feature-extraction", meta.model)
 
 // As a recognizer would hand them over: no punctuation, often with a lead-in.
@@ -100,6 +109,15 @@ const fragments: [string, string[]][] = [
   ["but the fruit of the spirit is love joy peace forbearance kindness", ["Galatians 5:22"]],
   ["even though i walk through the darkest valley i will fear no evil", ["Psalms 23:4"]],
   ["and do not conform to the pattern of this world but be transformed", ["Romans 12:2"]],
+  // a few words out of a verse: the meaning isn't the verse's, only the words are (verbatim matcher)
+  ["he gave gifts unto men", ["Ephesians 4:8"]],
+  ["the bible says he led captivity captive", ["Ephesians 4:8", "Psalms 68:18"]],
+  ["be not weary in well doing", ["Galatians 6:9", "2 Thessalonians 3:13"]],
+  ["a merry heart doeth good like a medicine", ["Proverbs 17:22"]],
+  ["iron sharpeneth iron", ["Proverbs 27:17"]],
+  ["you know the race is not to the swift", ["Ecclesiastes 9:11"]],
+  ["out of the abundance of the heart the mouth speaketh", ["Matthew 12:34", "Luke 6:45"]],
+  ["touch not mine anointed", ["Psalms 105:15", "1 Chronicles 16:22"]],
 ]
 
 const talk = [
@@ -119,12 +137,48 @@ const talk = [
   "you cannot love god and hate your brother it does not work that way",
   "next sunday we will continue with part three of this series",
   "faith is not a feeling faith is a decision you make every day",
+  // KJV-flavoured and everyday talk, for the verbatim matcher: common runs must stay silent
+  "and it came to pass that i found myself in the hospital that night",
+  "the word of the lord came to me very clearly in that season",
+  "in the name of the lord jesus christ we declare it this morning",
+  "i said unto him brother you need to come back to church",
+  "the children of israel were a stubborn people and so are we",
+  "thus saith the lord is not something you say lightly",
+  "he went up to the mountain to pray and that is where we are going today",
+  "the lord is good and his mercy is everlasting let us thank him",
+  "and he said unto them follow me and that is the call on your life",
+  "blessed be the name of the lord somebody shout hallelujah",
+  "i will say of the lord that he has been faithful to this house",
+  "we are going to take up an offering for the building project",
+  "my father and my mother came to this country with two suitcases",
+  "the man of god came to our house and he prayed for my son",
+  "let the people of god rise up and take their place in this city",
+  "there was a man in our church who had been sick for many years",
+  "out of the house and into the streets that is where ministry happens",
+  "i want to thank all of you for coming out on a rainy day like this",
+  "you shall know them by how they treat the waiter at the restaurant",
+  "the king of this world wants you distracted by your phone",
+  // short utterances: the coverage rule alone would let these through
+  "when i was a young man",
+  "he went up to the mountain to pray",
+  "and he said unto them",
+  "the man of god came",
+  "in the name of the lord jesus christ",
+  "i will say of the lord",
+  "give me a second church",
+  "the children of israel",
+  "let my people go somebody",
+  "my wife and my children",
+  "come unto me all of you",
+  "the sword of the lord",
+  "sound the trumpet this morning",
+  "open the windows of heaven",
 ]
 
 async function match(text: string) {
   const { quote, hadLeadIn } = stripLeadIn(text)
   const output = await extractor(meta.queryPrefix + quote, { pooling: "mean", normalize: true })
-  return pickQuote(output.data as Float32Array, indexes, hadLeadIn)
+  return pickQuote(output.data as Float32Array, indexes, hadLeadIn, quote.split(/\s+/).length) ?? pickVerbatim(quote, verbatim)
 }
 
 let found = 0
@@ -135,7 +189,7 @@ for (const [text, expected] of quotes as [string, string[]][]) {
   const verdict = !m ? "silent" : expected.includes(m.reference) ? "ok    " : "WRONG "
   if (m && expected.includes(m.reference)) found++
   if (m && !expected.includes(m.reference)) wrong++
-  console.log(`  ${verdict} ${m ? `${m.score.toFixed(2)} +${m.margin.toFixed(2)}${m.viaPhrase ? " P" : "  "} ${m.reference}` : ""}`.padEnd(46), text.slice(0, 52))
+  console.log(`  ${verdict} ${m ? `${m.score.toFixed(2)} +${m.margin.toFixed(2)}${m.verbatim ? " V" : m.viaPhrase ? " P" : "  "} ${m.reference}` : ""}`.padEnd(46), text.slice(0, 52))
 }
 console.log("FRAGMENTS of long verses (want the right verse)")
 let fragFound = 0
@@ -145,7 +199,7 @@ for (const [text, expected] of fragments) {
   if (m && expected.includes(m.reference)) fragFound++
   if (m && !expected.includes(m.reference)) fragWrong++
   const verdict = !m ? "silent" : expected.includes(m.reference) ? "ok    " : "WRONG "
-  console.log(`  ${verdict} ${m ? `${m.score.toFixed(2)} +${m.margin.toFixed(2)}${m.viaPhrase ? " P" : "  "} ${m.reference}` : ""}`.padEnd(46), text.slice(0, 52))
+  console.log(`  ${verdict} ${m ? `${m.score.toFixed(2)} +${m.margin.toFixed(2)}${m.verbatim ? " V" : m.viaPhrase ? " P" : "  "} ${m.reference}` : ""}`.padEnd(46), text.slice(0, 52))
 }
 
 let spoke = 0
@@ -153,7 +207,7 @@ console.log("TALK (want silence)")
 for (const text of talk) {
   const m = await match(text)
   if (m) spoke++
-  console.log(`  ${m ? `SPOKE  ${m.score.toFixed(2)} +${m.margin.toFixed(2)}${m.viaPhrase ? " P" : ""} ${m.reference}` : "silent"}`.padEnd(46), text.slice(0, 52))
+  console.log(`  ${m ? `SPOKE  ${m.score.toFixed(2)} +${m.margin.toFixed(2)}${m.verbatim ? " V" : m.viaPhrase ? " P" : ""} ${m.reference}` : "silent"}`.padEnd(46), text.slice(0, 52))
 }
 console.log(
   `\nquotes ${found}/${quotes.length} (wrong ${wrong}), fragments ${fragFound}/${fragments.length} (wrong ${fragWrong}), talk triggered ${spoke}/${talk.length}`,

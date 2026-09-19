@@ -14,7 +14,7 @@ export type VerseIndex = {
   // rows offsets[i] until offsets[i + 1] belong to verse i.
   phrases?: PhraseIndex
 }
-export type QuoteMatch = { reference: string; score: number; margin: number; viaPhrase: boolean }
+export type QuoteMatch = { reference: string; score: number; margin: number; viaPhrase: boolean; verbatim?: boolean }
 
 // Everything up to and including the last of these is preamble, not quote.
 const LEAD_IN =
@@ -35,6 +35,11 @@ const MIN_SCORE_AFTER_LEAD_IN = 0.7
 // so a phrase-derived win has to be stronger to count.
 const MIN_SCORE_PHRASE = 0.82
 const MIN_MARGIN_PHRASE = 0.06
+// And a few words of Bible-sounding talk ("and he said unto them", "the
+// children of israel") sit close to a clause of *some* verse: those came back
+// as Luke 24:19 and Amos 9:7. The shortest real clause quote in the sample is
+// six words ("by his stripes we are healed").
+const MIN_WORDS_PHRASE = 6
 // Verses whose clauses are worth scoring. Generous: the whole-verse score of a
 // quoted fragment can be mediocre (that is the problem phrases solve), it just
 // can't be nowhere.
@@ -87,7 +92,12 @@ function verdict(
 const wholeScore = (candidate: Candidate) => candidate.whole
 const phraseScore = (candidate: Candidate) => candidate.phrase
 
-export function pickQuote(query: Float32Array, indexes: VerseIndex[], hadLeadIn: boolean): QuoteMatch | null {
+export function pickQuote(
+  query: Float32Array,
+  indexes: VerseIndex[],
+  hadLeadIn: boolean,
+  wordCount = Infinity,
+): QuoteMatch | null {
   // Coarse pass: whole verses, every translation.
   const candidates: Candidate[] = []
   for (const index of indexes) {
@@ -120,8 +130,109 @@ export function pickQuote(query: Float32Array, indexes: VerseIndex[], hadLeadIn:
   // whole-verse verdict wins ties: more context, more reliable.
   return (
     verdict(candidates, wholeScore, query, hadLeadIn ? MIN_SCORE_AFTER_LEAD_IN : MIN_SCORE, MIN_MARGIN) ??
-    verdict(candidates, phraseScore, query, MIN_SCORE_PHRASE, MIN_MARGIN_PHRASE)
+    (wordCount >= MIN_WORDS_PHRASE ? verdict(candidates, phraseScore, query, MIN_SCORE_PHRASE, MIN_MARGIN_PHRASE) : null)
   )
+}
+
+// ---- Verbatim fragments -----------------------------------------------------
+// "…and gave gifts unto men." A few words lifted from a verse don't *mean* what
+// the verse means (Ephesians 4:8 is mostly about ascending and captivity), so
+// the embedding search can't find them: that fragment scored 0.73 with the
+// right verse nowhere in the top five. But the words themselves give it away:
+// "gave gifts unto men" occurs in exactly one verse of the KJV. So: a run of
+// consecutive words from the transcript that occurs in one verse only.
+// Four words, not three: "our nation and" — ordinary talk — is unique to Luke 7:5.
+// Unique isn't distinctive, though: "was a young man" is unique to Judges 17:7
+// and "i will say of the lord" to Psalm 91:2, and a preacher says both in
+// passing. So the run must also hold a word the Bible itself rarely uses
+// ("gifts", "captivity", "medicine"), and be most of what was said — or long.
+// Measured with: bun scripts/eval-quote-threshold.ts
+const RUN_WORDS = 4
+const RARE_WORD_VERSES = 150
+const RUN_COVERAGE = 0.6
+const LONG_RUN_WORDS = 6
+// At least this many of the run's words must carry meaning ("and it came to" doesn't).
+const RUN_CONTENT_WORDS = 2
+const FILLER = new Set(
+  "a all am an and are as at be but by did do for from had has hast hath have he her him his i in into is it me my no not of on or our shall she so that the thee their them then there they this thou thy to unto up upon us was we were what when which who will with ye you your".split(" "),
+)
+const AMBIGUOUS = -1
+
+export type VerbatimIndex = { refs: string[]; words: string[][]; runs: Map<number, number>; verseCount: Map<string, number> }
+
+const wordsOf = (text: string) => text.toLowerCase().replace(/'/g, "").replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean)
+
+// FNV-1a. A Map keyed by the joined strings of ~780k runs costs several times
+// the memory; collisions are harmless because every hit is checked against the verse.
+function hashRun(words: string[], start: number): number {
+  let hash = 0x811c9dc5
+  for (let w = start; w < start + RUN_WORDS; w++) {
+    for (let c = 0; c < words[w].length; c++) hash = Math.imul(hash ^ words[w].charCodeAt(c), 0x01000193)
+    hash = Math.imul(hash ^ 32, 0x01000193)
+  }
+  return hash
+}
+
+export function buildVerbatimIndex(verses: { reference: string; text: string }[]): VerbatimIndex {
+  const index: VerbatimIndex = { refs: [], words: [], runs: new Map(), verseCount: new Map() }
+  verses.forEach(({ reference, text }, row) => {
+    const words = wordsOf(text)
+    for (const word of new Set(words)) index.verseCount.set(word, (index.verseCount.get(word) ?? 0) + 1)
+    index.refs.push(reference)
+    index.words.push(words)
+    for (let start = 0; start + RUN_WORDS <= words.length; start++) {
+      const hash = hashRun(words, start)
+      const seen = index.runs.get(hash)
+      if (seen === undefined) index.runs.set(hash, row)
+      else if (seen !== row) index.runs.set(hash, AMBIGUOUS)
+    }
+  })
+  return index
+}
+
+export function pickVerbatim(text: string, index: VerbatimIndex): QuoteMatch | null {
+  const heard = wordsOf(text)
+  let best: { row: number; length: number } | null = null
+  let tied = false
+  for (let start = 0; start + RUN_WORDS <= heard.length; start++) {
+    const row = index.runs.get(hashRun(heard, start))
+    if (row === undefined || row === AMBIGUOUS) continue
+    const verse = index.words[row]
+    // Where in the verse, and how far the agreement runs past the four words.
+    let length = 0
+    for (let at = 0; at + RUN_WORDS <= verse.length && length === 0; at++) {
+      let same = 0
+      while (start + same < heard.length && at + same < verse.length && heard[start + same] === verse[at + same]) same++
+      if (same >= RUN_WORDS) length = same
+    }
+    if (length === 0) continue // hash collision
+    const run = heard.slice(start, start + length)
+    if (run.filter((word) => !FILLER.has(word)).length < RUN_CONTENT_WORDS) continue
+    if (!run.some((word) => (index.verseCount.get(word) ?? 0) <= RARE_WORD_VERSES)) continue
+    if (length < LONG_RUN_WORDS && length / heard.length < RUN_COVERAGE) continue
+    if (!best || length > best.length) { best = { row, length }; tied = false }
+    else if (length === best.length && row !== best.row) tied = true
+  }
+  // Two verses equally well quoted in one breath: don't guess.
+  if (!best || tied) return null
+  return { reference: index.refs[best.row], score: 1, margin: 1, viaPhrase: true, verbatim: true }
+}
+
+let verbatimIndex: Promise<VerbatimIndex | null> | null = null
+// KJV only: it is what gets quoted from memory, word for word.
+function loadVerbatimIndex(): Promise<VerbatimIndex | null> {
+  verbatimIndex ??= (async () => {
+    const res = await fetch("/bibles/kjv.json")
+    if (!res.ok) return null
+    const bible: { chapters: Record<string, { number: number; text: string }[]> } = await res.json()
+    return buildVerbatimIndex(
+      Object.entries(bible.chapters).flatMap(([key, verses]) => {
+        const at = key.lastIndexOf(":")
+        return verses.map((verse) => ({ reference: `${key.slice(0, at)} ${key.slice(at + 1)}:${verse.number}`, text: verse.text }))
+      }),
+    )
+  })().catch(() => null)
+  return verbatimIndex
 }
 
 // Translations preachers quote from, beyond the BSB index the app already
@@ -180,6 +291,9 @@ async function fetchIndex(version: string): Promise<VerseIndex | null> {
 // is instant and a service that starts offline still has them.
 export function warmQuoteIndexes() {
   void loadExtraIndexes()
+  void loadVerbatimIndex()
+  // The embedding model too, or the first quote of the service lands seconds late.
+  void import("@/lib/semantic-search").then(({ loadSemanticEngine }) => loadSemanticEngine())
 }
 
 function loadExtraIndexes(): Promise<VerseIndex[]> {
@@ -193,7 +307,10 @@ export async function matchQuote(text: string): Promise<QuoteMatch | null> {
   const { quote, hadLeadIn } = stripLeadIn(text)
   if (quote.split(/\s+/).length < MIN_WORDS) return null
   const { loadSemanticEngine } = await import("@/lib/semantic-search")
-  const [engine, extra] = await Promise.all([loadSemanticEngine(), loadExtraIndexes()])
-  if (!engine) return null
-  return pickQuote(await engine.embed(quote), [engine, ...extra], hadLeadIn)
+  const [engine, extra, verbatim] = await Promise.all([loadSemanticEngine(), loadExtraIndexes(), loadVerbatimIndex()])
+  // Meaning first: it has the whole sentence to go on. Exact words catch the fragments it can't.
+  return (engine && pickQuote(await engine.embed(quote), [engine, ...extra], hadLeadIn, quote.split(/\s+/).length)) || (verbatim && pickVerbatim(quote, verbatim))
 }
+
+// Lets the desktop smoke test check quote matching inside the packaged runtime.
+if (typeof window !== "undefined" && window.flowcastDesktop) Object.assign(window, { flowcastMatchQuote: matchQuote })
