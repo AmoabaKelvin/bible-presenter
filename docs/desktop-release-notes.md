@@ -16,3 +16,4 @@ The first time you turn on the microphone it downloads the speech models (needs 
 - Media: add videos and upload whole folders (both were failing in 0.1.1 and earlier).
 - Media: Remove acts on everything you have selected, deleting a folder deletes what is in it (after asking), and the sort order stays put when you switch tabs.
 - FlowCast now updates itself: a new release downloads in the background and is installed when you quit, or use FlowCast → Check for Updates…. This is the last version you install by hand. Until the app is notarized, macOS asks again for Keychain and microphone access after each update.
+- Songs: bring in a whole EasyWorship 6 or 7 song library. Add a song → EasyWorship, then pick `Songs.db` and `SongWords.db` from EasyWorship's `Databases\Data` folder. Songs already in your library are skipped.
