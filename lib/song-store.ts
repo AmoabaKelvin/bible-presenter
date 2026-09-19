@@ -56,6 +56,10 @@ export async function putSong(song: Song): Promise<void> {
   await writeStore((store) => store.put(song, song.id))
 }
 
+export async function putSongs(songs: Song[]): Promise<void> {
+  await writeStore((store) => songs.forEach((song) => store.put(song, song.id)))
+}
+
 export async function deleteSong(id: string): Promise<void> {
   await writeStore((store) => store.delete(id))
 }

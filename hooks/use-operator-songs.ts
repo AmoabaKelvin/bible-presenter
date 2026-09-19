@@ -7,6 +7,7 @@ import {
   deleteSong as deleteSongFromDb,
   getAllSongs,
   putSong,
+  putSongs,
 } from "@/lib/song-store"
 import { emptySongSlide, newId } from "@/lib/song-slides"
 import { deriveTitle, parseSongLyrics } from "@/lib/song-parse"
@@ -25,6 +26,7 @@ type UseOperatorSongsResult = {
   moveSlide: (slideId: string, direction: -1 | 1) => void
   createBlankSong: () => void
   createFromPaste: (title: string, lyrics: string, linesPerSlide?: number) => void
+  importSongs: (items: { title: string; lyrics: string }[]) => { added: number; skipped: number }
   selectSong: (song: Song) => void
   removeSong: (id: string) => void
 }
@@ -157,6 +159,32 @@ export function useOperatorSongs(): UseOperatorSongsResult {
     [addSong],
   )
 
+  // Bulk import (e.g. an EasyWorship library). Titles already in the library are
+  // skipped so re-running an import doesn't duplicate songs.
+  const importSongs = useCallback(
+    (items: { title: string; lyrics: string }[]) => {
+      const taken = new Set(songs.map((s) => s.title.trim().toLowerCase()))
+      const now = Date.now()
+      const fresh: Song[] = []
+      for (const item of items) {
+        const slides = parseSongLyrics(item.lyrics)
+        if (!slides.length) continue
+        const title = item.title.trim() || deriveTitle(slides)
+        if (taken.has(title.toLowerCase())) continue
+        taken.add(title.toLowerCase())
+        fresh.push({ id: newId("song"), title, slides, createdAt: now, updatedAt: now })
+      }
+      if (fresh.length) {
+        void putSongs(fresh)
+        setNewSlideId(null)
+        setSongs((prev) => [...fresh, ...prev])
+        setActiveSongId(fresh[0].id)
+      }
+      return { added: fresh.length, skipped: items.length - fresh.length }
+    },
+    [songs],
+  )
+
   const selectSong = useCallback((selected: Song) => {
     setNewSlideId(null)
     setActiveSongId(selected.id)
@@ -180,6 +208,7 @@ export function useOperatorSongs(): UseOperatorSongsResult {
     moveSlide,
     createBlankSong,
     createFromPaste,
+    importSongs,
     selectSong,
     removeSong,
   }

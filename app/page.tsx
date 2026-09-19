@@ -146,6 +146,7 @@ export default function OperatorPage() {
     moveSlide: moveSongSlide,
     createBlankSong,
     createFromPaste,
+    importSongs,
     selectSong,
     removeSong,
   } = useOperatorSongs()
@@ -425,6 +426,7 @@ export default function OperatorPage() {
             onSelectSong={selectSong}
             onNewSong={createBlankSong}
             onCreateFromPaste={createFromPaste}
+            onImportSongs={importSongs}
             onDeleteSong={removeSong}
             previewSlide={previewSlide}
             projectSlide={projectSlide}
