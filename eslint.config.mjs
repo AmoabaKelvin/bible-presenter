@@ -21,8 +21,12 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "desktop/stage/**",
+    "dist/**",
+    "voice-helper/.build/**",
     "next-env.d.ts",
   ]),
+  { files: ["desktop/**/*.cjs"], rules: { "@typescript-eslint/no-require-imports": "off" } },
 ]);
 
 export default eslintConfig;

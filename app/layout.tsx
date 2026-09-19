@@ -101,7 +101,7 @@ export default function RootLayout({
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
         </ThemeProvider>
         <ServiceWorkerRegister />
-        {process.env.NODE_ENV === 'production' && (
+        {process.env.NODE_ENV === 'production' && process.env.FLOWCAST_DESKTOP_BUILD !== '1' && (
           <script
             defer
             src="https://static.cloudflareinsights.com/beacon.min.js"

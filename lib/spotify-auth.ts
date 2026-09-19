@@ -1,3 +1,4 @@
+import { addDesktopChallenge, desktopVerifier, isDesktopRuntime } from "@/lib/desktop-auth-storage"
 import { SPOTIFY_AUTH_SCOPES } from "@/lib/music-url-parsers"
 import {
   clearOAuthSession,
@@ -60,7 +61,7 @@ export type PublicSpotifyStatusSession = PublicOAuthStatusSession
 export function getSpotifyClientConfig(requestUrl?: URL) {
   const { clientId, clientSecret } = getSpotifyCredentials()
   const redirectUri =
-    process.env.SPOTIFY_REDIRECT_URI ||
+    (isDesktopRuntime() ? "http://127.0.0.1:47820/api/spotify/callback" : process.env.SPOTIFY_REDIRECT_URI) ||
     (requestUrl ? `${requestUrl.origin}/api/spotify/callback` : undefined)
 
   if (!redirectUri) {
@@ -71,6 +72,11 @@ export function getSpotifyClientConfig(requestUrl?: URL) {
 }
 
 function getSpotifyCredentials() {
+  if (isDesktopRuntime()) {
+    const clientId = process.env.FLOWCAST_SPOTIFY_CLIENT_ID
+    if (!clientId) throw new Error("This build has no Spotify desktop client ID.")
+    return { clientId, clientSecret: "" }
+  }
   const clientId = process.env.SPOTIFY_CLIENT_ID
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
 
@@ -91,6 +97,7 @@ export function buildSpotifyAuthorizeUrl(requestUrl: URL, state: string) {
   url.searchParams.set("redirect_uri", redirectUri)
   url.searchParams.set("scope", SPOTIFY_AUTH_SCOPES.join(" "))
   url.searchParams.set("state", state)
+  addDesktopChallenge(url, state)
   url.searchParams.set("show_dialog", "true")
   return url
 }
@@ -118,6 +125,7 @@ export async function exchangeSpotifyCode(code: string, requestUrl: URL) {
     code,
     redirect_uri: redirectUri,
   })
+  if (isDesktopRuntime()) body.set("code_verifier", desktopVerifier(requestUrl.searchParams.get("state") || ""))
   const data = await requestSpotifyToken(body, clientId, clientSecret)
   if (!data.refresh_token) throw new Error("Spotify did not return a refresh token.")
   return toSession(data, data.refresh_token)
@@ -193,10 +201,11 @@ async function requestSpotifyToken(
   clientId: string,
   clientSecret: string,
 ): Promise<SpotifyTokenResponse> {
+  if (isDesktopRuntime()) body.set("client_id", clientId)
   const res = await fetch(`${SPOTIFY_ACCOUNTS_BASE}/api/token`, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+      ...(isDesktopRuntime() ? {} : { Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}` }),
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body,

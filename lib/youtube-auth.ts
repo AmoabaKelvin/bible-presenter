@@ -1,3 +1,4 @@
+import { addDesktopChallenge, desktopVerifier, isDesktopRuntime } from "@/lib/desktop-auth-storage"
 import {
   clearOAuthSession,
   consumeOAuthLoginState,
@@ -66,7 +67,7 @@ export type PublicYouTubeStatusSession = PublicOAuthStatusSession
 export function getYouTubeClientConfig(requestUrl?: URL) {
   const { clientId, clientSecret } = getYouTubeCredentials()
   const redirectUri =
-    process.env.GOOGLE_REDIRECT_URI ||
+    (isDesktopRuntime() ? "http://127.0.0.1:47820/api/youtube/callback" : process.env.GOOGLE_REDIRECT_URI) ||
     process.env.YOUTUBE_REDIRECT_URI ||
     (requestUrl ? `${requestUrl.origin}/api/youtube/callback` : undefined)
 
@@ -78,6 +79,11 @@ export function getYouTubeClientConfig(requestUrl?: URL) {
 }
 
 function getYouTubeCredentials() {
+  if (isDesktopRuntime()) {
+    const clientId = process.env.FLOWCAST_GOOGLE_CLIENT_ID
+    if (!clientId) throw new Error("This build has no Google desktop client ID.")
+    return { clientId, clientSecret: process.env.FLOWCAST_GOOGLE_CLIENT_SECRET || "" }
+  }
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET
 
@@ -96,6 +102,7 @@ export function buildYouTubeAuthorizeUrl(requestUrl: URL, state: string) {
   url.searchParams.set("redirect_uri", redirectUri)
   url.searchParams.set("scope", YOUTUBE_AUTH_SCOPES.join(" "))
   url.searchParams.set("state", state)
+  addDesktopChallenge(url, state)
   url.searchParams.set("access_type", "offline")
   url.searchParams.set("prompt", "consent")
   url.searchParams.set("include_granted_scopes", "true")
@@ -127,6 +134,7 @@ export async function exchangeYouTubeCode(code: string, requestUrl: URL) {
     client_id: clientId,
     client_secret: clientSecret,
   })
+  if (isDesktopRuntime()) body.set("code_verifier", desktopVerifier(requestUrl.searchParams.get("state") || ""))
   const data = await requestGoogleToken(body)
   if (!data.refresh_token) throw new Error("Google did not return a refresh token.")
   return toSession(data, data.refresh_token)

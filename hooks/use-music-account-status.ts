@@ -33,6 +33,7 @@ export function useMusicAccountStatus() {
         })
     }
     refresh()
+    const unsubscribe = window.flowcastDesktop?.onAccountChanged(refresh)
     const params = new URLSearchParams(window.location.search)
     if (params.has("spotify") || params.has("youtube")) {
       params.delete("spotify")
@@ -43,6 +44,7 @@ export function useMusicAccountStatus() {
     }
     return () => {
       cancelled = true
+      unsubscribe?.()
     }
   }, [])
 

@@ -21,6 +21,12 @@ export function useFullscreen() {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
+    if (window.flowcastDesktop) {
+      let active = true
+      void window.flowcastDesktop.getFullscreen().then((value) => { if (active) setIsFullscreen(value) })
+      const unsubscribe = window.flowcastDesktop.onFullscreen(setIsFullscreen)
+      return () => { active = false; unsubscribe() }
+    }
     const sync = () => setIsFullscreen(!!currentFullscreenElement())
     document.addEventListener("fullscreenchange", sync)
     document.addEventListener("webkitfullscreenchange", sync)
@@ -32,6 +38,10 @@ export function useFullscreen() {
   }, [])
 
   const enter = useCallback(async () => {
+    if (window.flowcastDesktop) {
+      setIsFullscreen(await window.flowcastDesktop.setFullscreen(true))
+      return
+    }
     const el = document.documentElement as WebkitElement
     try {
       if (el.requestFullscreen) await el.requestFullscreen()
@@ -42,6 +52,10 @@ export function useFullscreen() {
   }, [])
 
   const exit = useCallback(async () => {
+    if (window.flowcastDesktop) {
+      setIsFullscreen(await window.flowcastDesktop.setFullscreen(false))
+      return
+    }
     const d = document as WebkitDocument
     try {
       if (document.exitFullscreen) await document.exitFullscreen()
@@ -52,9 +66,9 @@ export function useFullscreen() {
   }, [])
 
   const toggle = useCallback(() => {
-    if (currentFullscreenElement()) exit()
+    if (window.flowcastDesktop ? isFullscreen : currentFullscreenElement()) exit()
     else enter()
-  }, [enter, exit])
+  }, [enter, exit, isFullscreen])
 
   return { isFullscreen, enter, exit, toggle }
 }

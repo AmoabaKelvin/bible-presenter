@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
+import { toast } from "sonner"
 import type { FontSize, SelectedVerse } from "@/components/slide-stage"
 import type { VerseData } from "@/components/operator/types"
 
@@ -44,17 +45,18 @@ export function useSlideshowOutput({
   )
 
   const openOutputWindow = useCallback(() => {
-    const w = window.open(
+    writeToOutput({ verses: liveVerses, mediaId: liveMedia?.id ?? null })
+    if (window.flowcastDesktop) {
+      void window.flowcastDesktop.openOutput().catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : "Unable to open output.")
+      })
+      return
+    }
+    window.open(
       "/slideshow",
       "BibleSlideshow",
       "width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no",
     )
-    if (w) {
-      setTimeout(
-        () => writeToOutput({ verses: liveVerses, mediaId: liveMedia?.id ?? null }),
-        500,
-      )
-    }
   }, [liveMedia, liveVerses, writeToOutput])
 
   return { writeToOutput, openOutputWindow }

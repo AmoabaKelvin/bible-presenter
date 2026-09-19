@@ -1,3 +1,4 @@
+import { desktopCallbackResponse, isDesktopRuntime } from "@/lib/desktop-auth-storage"
 import {
   consumeSpotifyLoginState,
   consumeSpotifyReturnTo,
@@ -15,6 +16,10 @@ export async function GET(request: Request) {
   const returnTo = await consumeSpotifyReturnTo()
 
   if (error) {
+    if (isDesktopRuntime()) {
+      if (!await consumeSpotifyLoginState(state)) return Response.json({ error: "Invalid authorization callback." }, { status: 400 })
+      return desktopCallbackResponse(false)
+    }
     return Response.redirect(withSpotifyStatus(returnTo, requestUrl.origin, "error"))
   }
 
@@ -26,6 +31,7 @@ export async function GET(request: Request) {
   try {
     const session = await exchangeSpotifyCode(code, requestUrl)
     await writeSpotifySession(session)
+    if (isDesktopRuntime()) return desktopCallbackResponse(true)
     return Response.redirect(withSpotifyStatus(returnTo, requestUrl.origin, "connected"))
   } catch (err) {
     console.error("Spotify callback failed", err)

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto"
+import { deleteDesktopValue, isDesktopRuntime, readDesktopValue, writeDesktopValue } from "@/lib/desktop-auth-storage"
 
 export interface OAuthSession {
   accessToken: string
@@ -45,7 +46,8 @@ interface OAuthFetchOptions<T extends OAuthSession> extends FreshOAuthSessionOpt
 }
 
 export function makeOAuthState() {
-  return randomBytes(24).toString("base64url")
+  // The desktop server only lets a callback through with a 48-hex-character state (desktop/security.cjs).
+  return randomBytes(24).toString(isDesktopRuntime() ? "hex" : "base64url")
 }
 
 export async function setOAuthLoginCookies(
@@ -53,6 +55,10 @@ export async function setOAuthLoginCookies(
   state: string,
   returnTo: string,
 ) {
+  if (isDesktopRuntime()) {
+    writeDesktopValue(config.stateCookie, { state, expiresAt: Date.now() + config.stateMaxAgeSeconds * 1000 })
+    return
+  }
   const store = await cookies()
   const secure = process.env.NODE_ENV === "production"
   store.set(config.stateCookie, state, {
@@ -75,6 +81,15 @@ export async function consumeOAuthLoginState(
   config: OAuthSessionConfig,
   receivedState: string | null,
 ) {
+  if (isDesktopRuntime()) {
+    const saved = readDesktopValue<{ state: string; expiresAt: number }>(config.stateCookie)
+    if (!saved || !receivedState || saved.expiresAt < Date.now()) return false
+    const received = Buffer.from(receivedState)
+    const expected = Buffer.from(saved.state)
+    const valid = received.length === expected.length && timingSafeEqual(received, expected)
+    if (valid) deleteDesktopValue(config.stateCookie)
+    return valid
+  }
   const store = await cookies()
   const expected = store.get(config.stateCookie)?.value ?? null
   store.delete(config.stateCookie)
@@ -87,6 +102,7 @@ export async function consumeOAuthLoginState(
 }
 
 export async function consumeOAuthReturnTo(config: OAuthSessionConfig) {
+  if (isDesktopRuntime()) return "/"
   const store = await cookies()
   const returnTo = store.get(config.returnCookie)?.value || "/"
   store.delete(config.returnCookie)
@@ -94,6 +110,7 @@ export async function consumeOAuthReturnTo(config: OAuthSessionConfig) {
 }
 
 export async function readOAuthSession<T extends OAuthSession>(config: OAuthSessionConfig) {
+  if (isDesktopRuntime()) return readDesktopValue<T>(config.tokenCookie)
   const store = await cookies()
   const raw = store.get(config.tokenCookie)?.value
   if (!raw) return null
@@ -121,6 +138,7 @@ export async function writeOAuthSession<T extends OAuthSession>(
   config: OAuthSessionConfig,
   session: T,
 ) {
+  if (isDesktopRuntime()) { writeDesktopValue(config.tokenCookie, session); return }
   const store = await cookies()
   store.set(config.tokenCookie, encryptSession(config, session), {
     httpOnly: true,
@@ -132,6 +150,7 @@ export async function writeOAuthSession<T extends OAuthSession>(
 }
 
 export async function clearOAuthSession(config: OAuthSessionConfig) {
+  if (isDesktopRuntime()) { deleteDesktopValue(config.tokenCookie); deleteDesktopValue(config.stateCookie); return }
   const store = await cookies()
   store.delete(config.tokenCookie)
   store.delete(config.stateCookie)

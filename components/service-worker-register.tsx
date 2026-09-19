@@ -6,6 +6,12 @@ import { useEffect } from "react"
 // would otherwise mask code changes behind stale responses.
 export function ServiceWorkerRegister() {
   useEffect(() => {
+    if (window.flowcastDesktop) {
+      void navigator.serviceWorker?.getRegistrations().then((registrations) => {
+        for (const registration of registrations) void registration.unregister()
+      })
+      return
+    }
     if (process.env.NODE_ENV !== "production") return
     if (!("serviceWorker" in navigator)) return
     const register = () => {

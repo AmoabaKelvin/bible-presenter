@@ -69,60 +69,79 @@ async function permissionState(name: string): Promise<PermissionState | null> {
   }
 }
 
-async function connectHelper(onStatus: (status: string) => void): Promise<Backend | null> {
+async function connectHelper(onStatus: (status: string) => void, signal: AbortSignal): Promise<Backend | null> {
   if (helper) return helper
-  // Chrome-only, and only on a secure origin that isn't itself local.
-  const permission = await permissionState("local-network-access")
-  if (permission === "denied") return null
-  if (permission === "prompt") onStatus("Allow local network access to use the voice helper…")
-  const timeout = permission === "prompt" ? HELPER_PERMISSION_MS : HELPER_CONNECT_MS
-  return new Promise((resolve) => {
-    let settled = false
-    const give = (backend: Backend | null) => {
-      if (settled) return
-      settled = true
-      resolve(backend)
-    }
-    setTimeout(() => give(null), timeout)
-    const listeners = new Set<(result: BackendResult) => void>()
-    const socket = new WebSocket(HELPER_URL)
-    socket.binaryType = "arraybuffer"
-    // No timeout: a helper that isn't running refuses the connection within
-    // milliseconds, while from the public site Chrome may be showing its
-    // one-time "allow local network access" prompt, which must not be cut off.
-    socket.onopen = () => onStatus("Voice helper is loading its model…")
-    socket.onclose = () => {
-      const wasLive = helper !== null
-      helper = null
-      if (wasLive) listeners.forEach((listener) => listener({ id: -1, text: "", ms: 0, error: "Voice helper disconnected." }))
-      else give(null)
-    }
-    socket.onmessage = (event) => {
-      const message = JSON.parse(String(event.data))
-      if (message.type === "vocabulary") return
-      if (message.type === "ready") {
-        socket.send(JSON.stringify({ type: "vocabulary", terms: voiceVocabulary }))
-        helper = {
-          label: "helper",
-          partialMs: 300,
-          transcribe: (id, audio) => {
-            const frame = new Uint8Array(4 + audio.byteLength)
-            new DataView(frame.buffer).setUint32(0, id, true)
-            frame.set(new Uint8Array(audio.buffer, audio.byteOffset, audio.byteLength), 4)
-            socket.send(frame)
-          },
-          subscribe: (listener) => {
-            listeners.add(listener)
-            return () => listeners.delete(listener)
-          },
-        }
-        give(helper)
-      } else {
-        const result: BackendResult = { id: message.id, text: message.text ?? "", ms: message.ms ?? 0, error: message.message }
-        listeners.forEach((listener) => listener(result))
+  const desktop = window.flowcastDesktop
+  const unsubscribe = desktop?.onVoiceStatus(onStatus)
+  try {
+    const endpoint = desktop ? await desktop.connectVoice() : null
+    if (signal.aborted) throw new DOMException("Cancelled", "AbortError")
+    const permission = desktop ? null : await permissionState("local-network-access")
+    if (permission === "denied") return null
+    if (permission === "prompt") onStatus("Allow local network access to use the voice helper…")
+    const timeout = permission === "prompt" ? HELPER_PERMISSION_MS : HELPER_CONNECT_MS
+    return await new Promise((resolve, reject) => {
+      let settled = false
+      const listeners = new Set<(result: BackendResult) => void>()
+      const socket = endpoint
+        ? new WebSocket(endpoint.url, ["flowcast", endpoint.token])
+        : new WebSocket(HELPER_URL)
+      socket.binaryType = "arraybuffer"
+      const finish = (backend: Backend | null, error?: Error) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        signal.removeEventListener("abort", abort)
+        if (!backend) socket.close()
+        if (error) reject(error)
+        else resolve(backend)
       }
-    }
-  })
+      const abort = () => finish(null, new DOMException("Cancelled", "AbortError"))
+      const timer = setTimeout(() => finish(null, desktop ? new Error("Voice helper connection timed out. Turn voice off and on to retry.") : undefined), timeout)
+      signal.addEventListener("abort", abort, { once: true })
+      socket.onopen = () => {
+        // A connected helper can spend minutes downloading models on first use.
+        clearTimeout(timer)
+        onStatus("Voice helper is preparing its models…")
+        if (desktop) socket.send(JSON.stringify({ type: "vocabulary", terms: voiceVocabulary }))
+      }
+      socket.onerror = () => finish(null, desktop ? new Error("Unable to connect to the bundled voice helper.") : undefined)
+      socket.onclose = () => {
+        const wasLive = helper !== null
+        helper = null
+        if (wasLive) listeners.forEach((listener) => listener({ id: -1, text: "", ms: 0, error: "Voice helper disconnected. Turn voice off and on to retry." }))
+        else finish(null, desktop ? new Error("Voice helper stopped during setup. Turn voice off and on to retry.") : undefined)
+      }
+      socket.onmessage = (event) => {
+        let message
+        try { message = JSON.parse(String(event.data)) } catch { return }
+        if (message.type === "vocabulary") return
+        if (message.type === "status") { if (!settled) onStatus(message.message); return }
+        if (message.type === "error" && !settled) { finish(null, new Error(message.message)); return }
+        if (message.type === "ready") {
+          if (settled) return
+          if (!desktop) socket.send(JSON.stringify({ type: "vocabulary", terms: voiceVocabulary }))
+          helper = {
+            label: "helper", partialMs: 300,
+            transcribe: (id, audio) => {
+              const frame = new Uint8Array(4 + audio.byteLength)
+              new DataView(frame.buffer).setUint32(0, id, true)
+              frame.set(new Uint8Array(audio.buffer, audio.byteOffset, audio.byteLength), 4)
+              socket.send(frame)
+            },
+            subscribe: (listener) => {
+              listeners.add(listener)
+              return () => { listeners.delete(listener) }
+            },
+          }
+          finish(helper)
+        } else {
+          const result: BackendResult = { id: message.id, text: message.text ?? "", ms: message.ms ?? 0, error: message.message }
+          listeners.forEach((listener) => listener(result))
+        }
+      }
+    })
+  } finally { unsubscribe?.() }
 }
 
 // 2) The same model inside the browser (WebGPU/WASM worker): no install, any
@@ -174,11 +193,12 @@ export function startLocalEngine({
   onError,
 }: EngineOptions): () => void {
   let stopped = false
+  const controller = new AbortController()
   let cleanup = () => {}
 
   ;(async () => {
     onStatus("Looking for the voice helper…")
-    const helperBackend = await connectHelper(onStatus)
+    const helperBackend = await connectHelper(onStatus, controller.signal)
     if (stopped) return
     if (!helperBackend && !allowInBrowser) {
       onNeedsHelper()
@@ -267,6 +287,7 @@ export function startLocalEngine({
     if (stopped) cleanup()
     else onStatus(null)
   })().catch((error: unknown) => {
+    if (stopped) return
     const name = error instanceof DOMException ? error.name : ""
     onError(
       name === "NotAllowedError"
@@ -279,6 +300,7 @@ export function startLocalEngine({
 
   return () => {
     stopped = true
+    controller.abort()
     cleanup()
   }
 }

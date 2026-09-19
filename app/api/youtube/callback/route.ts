@@ -1,3 +1,4 @@
+import { desktopCallbackResponse, isDesktopRuntime } from "@/lib/desktop-auth-storage"
 import {
   consumeYouTubeLoginState,
   consumeYouTubeReturnTo,
@@ -15,6 +16,10 @@ export async function GET(request: Request) {
   const returnTo = await consumeYouTubeReturnTo()
 
   if (error) {
+    if (isDesktopRuntime()) {
+      if (!await consumeYouTubeLoginState(state)) return Response.json({ error: "Invalid authorization callback." }, { status: 400 })
+      return desktopCallbackResponse(false)
+    }
     return Response.redirect(withYouTubeStatus(returnTo, requestUrl.origin, "error"))
   }
 
@@ -26,6 +31,7 @@ export async function GET(request: Request) {
   try {
     const session = await exchangeYouTubeCode(code, requestUrl)
     await writeYouTubeSession(session)
+    if (isDesktopRuntime()) return desktopCallbackResponse(true)
     return Response.redirect(withYouTubeStatus(returnTo, requestUrl.origin, "connected"))
   } catch (err) {
     console.error("YouTube callback failed", err)

@@ -1,0 +1,55 @@
+name: Build macOS app
+on:
+  # Pushing a desktop-v* tag builds the DMG and publishes it to that release.
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+    inputs:
+      notarize:
+        description: Sign and notarize with Developer ID credentials
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
+      - run: bun install --frozen-lockfile
+      - run: bun run desktop:test
+      - run: bun run desktop:build
+        env:
+          FLOWCAST_SPOTIFY_CLIENT_ID: ${{ vars.FLOWCAST_SPOTIFY_CLIENT_ID }}
+          FLOWCAST_GOOGLE_CLIENT_ID: ${{ vars.FLOWCAST_GOOGLE_CLIENT_ID }}
+          FLOWCAST_GOOGLE_CLIENT_SECRET: ${{ secrets.FLOWCAST_GOOGLE_DESKTOP_CLIENT_SECRET }}
+      - run: bun run desktop:package
+        env:
+          FLOWCAST_RELEASE: ${{ inputs.notarize && '1' || '0' }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FlowCast-macOS-arm64
+          path: dist/*.dmg
+          if-no-files-found: error
+      - name: Publish to the tag's release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" \
+            --title "FlowCast for Mac ${GITHUB_REF_NAME#desktop-v} (preview)" \
+            --notes-file docs/desktop-release-notes.md --prerelease --latest=false
+          gh release upload "$GITHUB_REF_NAME" dist/*.dmg --clobber
