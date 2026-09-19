@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Search, Loader2, Music } from "lucide-react"
+import { Search, Loader2, Music, FolderOpen } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -19,20 +19,23 @@ import {
   searchSongsOnline,
   type SongSearchResult,
 } from "@/lib/lyrics-api"
+import { readEasyWorshipFiles } from "@/lib/easyworship-import"
 
 interface PasteSongDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (title: string, lyrics: string, linesPerSlide?: number) => void
+  onImport: (items: { title: string; lyrics: string }[]) => { added: number; skipped: number }
   onStartBlank: () => void
 }
 
-type Tab = "search" | "paste"
+type Tab = "search" | "paste" | "easyworship"
 
 export function PasteSongDialog({
   open,
   onOpenChange,
   onCreate,
+  onImport,
   onStartBlank,
 }: PasteSongDialogProps) {
   const [tab, setTab] = useState<Tab>("search")
@@ -48,6 +51,9 @@ export function PasteSongDialog({
   const [error, setError] = useState<string | null>(null)
   const searchAbort = useRef<AbortController | null>(null)
   const lyricsAbort = useRef<AbortController | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importStatus, setImportStatus] = useState<string | null>(null)
+  const fileInput = useRef<HTMLInputElement | null>(null)
 
   const reset = () => {
     searchAbort.current?.abort()
@@ -62,6 +68,8 @@ export function PasteSongDialog({
     setSearching(false)
     setFetchingId(null)
     setError(null)
+    setImporting(false)
+    setImportStatus(null)
   }
 
   const handleOpenChange = (next: boolean) => {
@@ -110,6 +118,25 @@ export function PasteSongDialog({
     }
   }
 
+  const importEasyWorship = async (files: File[]) => {
+    if (!files.length) return
+    setImporting(true)
+    setImportStatus(null)
+    try {
+      const found = await readEasyWorshipFiles(files)
+      const { added, skipped } = onImport(found)
+      setImportStatus(
+        `Imported ${added} ${added === 1 ? "song" : "songs"}` +
+          (skipped ? ` · ${skipped} skipped (already in your library, or no lyrics)` : "") +
+          ".",
+      )
+    } catch (e) {
+      setImportStatus((e as Error).message || "Couldn't read those files.")
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const create = () => {
     if (!lyrics.trim()) return
     const n = parseInt(linesPerSlide, 10)
@@ -136,9 +163,10 @@ export function PasteSongDialog({
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex-1 min-h-0 flex flex-col">
           <div className="px-6">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="search">Search</TabsTrigger>
               <TabsTrigger value="paste">Paste lyrics</TabsTrigger>
+              <TabsTrigger value="easyworship">EasyWorship</TabsTrigger>
             </TabsList>
           </div>
 
@@ -237,39 +265,84 @@ export function PasteSongDialog({
               A blank line starts a new slide, or set a fixed lines-per-slide below.
             </p>
           </TabsContent>
+
+          {/* EasyWorship import */}
+          <TabsContent
+            value="easyworship"
+            className="flex-1 min-h-0 overflow-y-auto scroll-thin px-6 pt-4 pb-2 m-0 space-y-3 animate-in fade-in-0 slide-in-from-right-3 duration-200 ease-out"
+          >
+            <p className="text-sm text-muted-foreground">
+              Bring in your whole EasyWorship 6 or 7 song library. On the EasyWorship
+              computer, open this folder and select both <code>Songs.db</code> and{" "}
+              <code>SongWords.db</code>:
+            </p>
+            <p className="rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11.5px] break-all">
+              C:\Users\Public\Documents\Softouch\Easyworship\Default\v6.1\Databases\Data
+            </p>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              accept=".db"
+              className="hidden"
+              onChange={(e) => {
+                void importEasyWorship(Array.from(e.target.files ?? []))
+                e.target.value = ""
+              }}
+            />
+            <Button size="sm" onClick={() => fileInput.current?.click()} disabled={importing}>
+              {importing ? (
+                <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <FolderOpen className="size-3.5 mr-1.5" />
+              )}
+              Choose Songs.db and SongWords.db
+            </Button>
+            {importStatus && (
+              <p className="text-sm" role="status">
+                {importStatus}
+              </p>
+            )}
+          </TabsContent>
         </Tabs>
 
         <DialogFooter className="px-6 py-4 border-t border-border sm:justify-between">
           <Button variant="ghost" size="sm" onClick={startBlank}>
             Start blank instead
           </Button>
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="lines-per-slide"
-              className="text-[12px] text-muted-foreground whitespace-nowrap"
-              title="Leave blank to break on blank lines; set a number to break every N lines"
-            >
-              Lines / slide
-            </label>
-            <Input
-              id="lines-per-slide"
-              type="text"
-              inputMode="numeric"
-              value={linesPerSlide}
-              onChange={(e) => setLinesPerSlide(e.target.value.replace(/[^0-9]/g, ""))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && lyrics.trim()) {
-                  e.preventDefault()
-                  create()
-                }
-              }}
-              placeholder="Auto"
-              className="h-8 w-16 text-center"
-            />
-            <Button size="sm" onClick={create} disabled={!lyrics.trim()}>
-              Create song
+          {tab === "easyworship" ? (
+            <Button size="sm" variant="outline" onClick={() => handleOpenChange(false)}>
+              Done
             </Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="lines-per-slide"
+                className="text-[12px] text-muted-foreground whitespace-nowrap"
+                title="Leave blank to break on blank lines; set a number to break every N lines"
+              >
+                Lines / slide
+              </label>
+              <Input
+                id="lines-per-slide"
+                type="text"
+                inputMode="numeric"
+                value={linesPerSlide}
+                onChange={(e) => setLinesPerSlide(e.target.value.replace(/[^0-9]/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && lyrics.trim()) {
+                    e.preventDefault()
+                    create()
+                  }
+                }}
+                placeholder="Auto"
+                className="h-8 w-16 text-center"
+              />
+              <Button size="sm" onClick={create} disabled={!lyrics.trim()}>
+                Create song
+              </Button>
+            </div>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -35,6 +35,7 @@ interface SongsPaneProps {
   onSelectSong: (song: Song) => void
   onNewSong: () => void
   onCreateFromPaste: (title: string, lyrics: string, linesPerSlide?: number) => void
+  onImportSongs: (items: { title: string; lyrics: string }[]) => { added: number; skipped: number }
   onDeleteSong: (id: string) => void
   previewSlide: (verse: SelectedVerse) => void
   projectSlide: (verse: SelectedVerse) => void
@@ -55,6 +56,7 @@ export function SongsPane({
   onSelectSong,
   onNewSong,
   onCreateFromPaste,
+  onImportSongs,
   onDeleteSong,
   previewSlide,
   projectSlide,
@@ -173,6 +175,7 @@ export function SongsPane({
         open={pasteOpen}
         onOpenChange={setPasteOpen}
         onCreate={onCreateFromPaste}
+        onImport={onImportSongs}
         onStartBlank={onNewSong}
       />
 
