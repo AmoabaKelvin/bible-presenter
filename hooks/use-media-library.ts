@@ -210,15 +210,29 @@ export function useMediaLibrary() {
     [addVideoFromHandle],
   )
 
+  // Drop the stored bytes/handle behind each item, then the items, in one pass.
+  const removeItems = useCallback((doomed: MediaItem[]) => {
+    if (doomed.length === 0) return
+    for (const item of doomed) {
+      if (item.imageId) removeImage(item.imageId)
+      if (item.thumbnailId) removeImage(item.thumbnailId)
+      if (item.handleId) removeFileHandle(item.handleId)
+    }
+    const ids = new Set(doomed.map((item) => item.id))
+    setMedia((items) => items.filter((candidate) => !ids.has(candidate.id)))
+  }, [])
+
   const deleteMedia = useCallback(
-    (id: string) => {
-      const item = media.find((candidate) => candidate.id === id)
-      if (item?.imageId) removeImage(item.imageId)
-      if (item?.thumbnailId) removeImage(item.thumbnailId)
-      if (item?.handleId) removeFileHandle(item.handleId)
-      setMedia((items) => items.filter((candidate) => candidate.id !== id))
+    (id: string) => removeItems(media.filter((candidate) => candidate.id === id)),
+    [media, removeItems],
+  )
+
+  const deleteManyMedia = useCallback(
+    (ids: string[]) => {
+      const idSet = new Set(ids)
+      removeItems(media.filter((candidate) => idSet.has(candidate.id)))
     },
-    [media],
+    [media, removeItems],
   )
 
   const ensureStoredMediaItem = useCallback(
@@ -269,13 +283,14 @@ export function useMediaLibrary() {
     setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name: trimmed } : f)))
   }, [])
 
-  // Removing a folder re-files its items to Unfiled rather than deleting them.
-  const deleteMediaFolder = useCallback((id: string) => {
-    setFolders((prev) => prev.filter((f) => f.id !== id))
-    setMedia((prev) =>
-      prev.map((item) => (item.folderId === id ? { ...item, folderId: undefined } : item)),
-    )
-  }, [])
+  // Removing a folder removes everything in it; the pane confirms first.
+  const deleteMediaFolder = useCallback(
+    (id: string) => {
+      setFolders((prev) => prev.filter((f) => f.id !== id))
+      removeItems(media.filter((item) => item.folderId === id))
+    },
+    [media, removeItems],
+  )
 
   const moveMediaToFolder = useCallback((itemId: string, folderId: string | null) => {
     setMedia((prev) =>
@@ -349,6 +364,7 @@ export function useMediaLibrary() {
     handleMediaUpload,
     addVideos,
     deleteMedia,
+    deleteManyMedia,
     ensureStoredMediaItem,
     createMediaFolder,
     renameMediaFolder,

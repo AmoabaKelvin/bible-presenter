@@ -225,6 +225,8 @@ interface FolderHeaderProps {
   onToggle: () => void
   onRename: (id: string, name: string) => void
   onDelete: (id: string) => void
+  // When deleting takes the contents with it, say so and ask first.
+  confirmDelete?: string
 }
 
 // A collapsible folder group header carrying the folder name, note count, and
@@ -237,8 +239,10 @@ export function FolderHeader({
   onToggle,
   onRename,
   onDelete,
+  confirmDelete,
 }: FolderHeaderProps) {
   const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   return (
     <>
     <div className="group flex items-center gap-1 px-2 py-1">
@@ -280,7 +284,7 @@ export function FolderHeader({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onSelect={() => onDelete(folder.id)}
+            onSelect={() => (confirmDelete ? setDeleteOpen(true) : onDelete(folder.id))}
           >
             Delete folder
           </DropdownMenuItem>
@@ -295,6 +299,29 @@ export function FolderHeader({
         submitLabel="Rename"
         onSubmit={(name) => onRename(folder.id, name)}
       />
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete “{folder.name}”?</DialogTitle>
+            <DialogDescription>{confirmDelete}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                setDeleteOpen(false)
+                onDelete(folder.id)
+              }}
+            >
+              Delete folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

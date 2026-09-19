@@ -52,6 +52,7 @@ import {
 } from "lucide-react"
 import type { Folder, MediaItem } from "./types"
 import type { BackgroundTarget } from "@/lib/background-config"
+import { usePersistedState } from "@/hooks/use-persisted-state"
 import { resolveImageUrl } from "@/lib/image-store"
 import { cn } from "@/lib/utils"
 // Reuse the generic (note-agnostic) folder header + name dialog so the media
@@ -91,6 +92,7 @@ interface MediaPaneProps {
   // No args → directory picker (when supported); Files → <input> fallback.
   onUploadFolder: (files?: File[]) => void
   onDelete: (id: string) => void
+  onDeleteMany: (ids: string[]) => void
   onPreview: (item: MediaItem) => void
   onProject: (item: MediaItem) => void
   onPrepare: (item: MediaItem) => void
@@ -112,6 +114,7 @@ export function MediaPane({
   onAddVideos,
   onUploadFolder,
   onDelete,
+  onDeleteMany,
   onPreview,
   onProject,
   onPrepare,
@@ -127,7 +130,8 @@ export function MediaPane({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [createOpen, setCreateOpen] = useState(false)
   const [filter, setFilter] = useState<MediaFilter>("all")
-  const [sort, setSort] = useState<MediaSort>("date")
+  // Persisted: the pane unmounts when the operator switches tabs.
+  const [sort, setSort] = usePersistedState<MediaSort>("workspace:mediaSort", "date")
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   // Multi-select: ids the user has selected so they can drag/move them together.
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -322,6 +326,7 @@ export function MediaPane({
           getSelectionIds={getSelectionIds}
           onClearSelection={clearSelection}
           onDelete={onDelete}
+          onDeleteMany={onDeleteMany}
           onPreview={onPreview}
           onProject={onProject}
           onPrepare={onPrepare}
@@ -487,6 +492,11 @@ export function MediaPane({
                     onToggle={() => toggleFolder(folder.id)}
                     onRename={onRenameFolder}
                     onDelete={onDeleteFolder}
+                    confirmDelete={
+                      bucket.length > 0
+                        ? `This also removes the ${bucket.length} item${bucket.length === 1 ? "" : "s"} in it from FlowCast. The original files on your computer are not touched.`
+                        : undefined
+                    }
                   />
                   {!isCollapsed &&
                     (bucket.length === 0 ? (
@@ -577,6 +587,7 @@ const MediaTile = memo(function MediaTile({
   getSelectionIds,
   onClearSelection,
   onDelete,
+  onDeleteMany,
   onPreview,
   onProject,
   onPrepare,
@@ -592,6 +603,7 @@ const MediaTile = memo(function MediaTile({
   getSelectionIds: () => string[]
   onClearSelection: () => void
   onDelete: (id: string) => void
+  onDeleteMany: (ids: string[]) => void
   onPreview: (item: MediaItem) => void
   onProject: (item: MediaItem) => void
   onPrepare: (item: MediaItem) => void
@@ -617,7 +629,17 @@ const MediaTile = memo(function MediaTile({
     }
   }, [inView, item.dataUrl, item.imageId, item.thumbnailId])
 
-  const handleDelete = useCallback(() => onDelete(item.id), [item.id, onDelete])
+  // Remove from the context menu: the whole selection when this tile is part of
+  // a 2+ selection, otherwise just this tile (same rule as moving).
+  const handleDelete = useCallback(() => {
+    const ids = getSelectionIds()
+    if (selected && ids.length >= 2) {
+      onDeleteMany(ids)
+      onClearSelection()
+    } else {
+      onDelete(item.id)
+    }
+  }, [getSelectionIds, item.id, onClearSelection, onDelete, onDeleteMany, selected])
   const handlePreview = useCallback(() => onPreview(item), [item, onPreview])
   const handleProject = useCallback(() => onProject(item), [item, onProject])
   const handlePrepare = useCallback(() => onPrepare(item), [item, onPrepare])

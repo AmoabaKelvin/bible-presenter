@@ -98,6 +98,7 @@ export default function OperatorPage() {
     handleMediaUpload,
     addVideos,
     deleteMedia,
+    deleteManyMedia,
     handlePreviewMedia,
     handleProjectMedia,
     prepareMedia,
@@ -439,6 +440,7 @@ export default function OperatorPage() {
             onAddVideos={addVideos}
             onUploadFolder={uploadMediaFolder}
             onDelete={deleteMedia}
+            onDeleteMany={deleteManyMedia}
             onPreview={handlePreviewMedia}
             onProject={handleProjectMedia}
             onPrepare={prepareMedia}
