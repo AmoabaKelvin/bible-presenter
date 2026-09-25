@@ -46,6 +46,9 @@ export default function SlideshowPage() {
   const backgroundColor = data.backgroundColor || (data.darkMode ? "#000000" : "#FFFFFF")
   const backgroundImage = bgImageUrl ?? undefined
   const mediaUrl = mediaImageUrl ?? undefined
+  const slideKey = data.verses.map((v) => v.id).join("|")
+  const fadeMs =
+    data.presentation?.transition === "fade" ? data.presentation.transitionMs : 0
 
   return (
     <div
@@ -57,19 +60,32 @@ export default function SlideshowPage() {
         backgroundColor={backgroundColor}
         backgroundImage={backgroundImage}
         backgroundKind={bgKind}
+        backgroundBlur={data.presentation?.backgroundBlur}
+        backgroundDim={data.presentation?.backgroundDim}
         mediaUrl={mediaUrl}
         mediaKind={mediaKind}
         className="w-full h-full"
       >
         {data.verses.length > 0 && (
-          <SlideContent
-            verses={data.verses}
-            fontSize={data.fontSize}
-            backgroundColor={backgroundColor}
-            backgroundImage={backgroundImage}
-            defaultVersion={data.version}
-            presentation={data.presentation}
-          />
+          // Keyed by the slide so each new slide remounts and replays the fade.
+          <div
+            key={slideKey}
+            className="absolute inset-0"
+            style={
+              fadeMs
+                ? { animation: `slide-fade-in ${fadeMs}ms ease-out both` }
+                : undefined
+            }
+          >
+            <SlideContent
+              verses={data.verses}
+              fontSize={data.fontSize}
+              backgroundColor={backgroundColor}
+              backgroundImage={backgroundImage}
+              defaultVersion={data.version}
+              presentation={data.presentation}
+            />
+          </div>
         )}
       </SlideStage>
 

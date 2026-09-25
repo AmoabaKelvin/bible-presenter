@@ -9,6 +9,9 @@ export type ScriptureWeight = "light" | "regular" | "semibold" | "bold"
 export type ReferenceWeight = "regular" | "semibold" | "bold"
 
 export type ReferencePosition = "above" | "below"
+export type VerticalPosition = "top" | "center" | "bottom"
+export type TextShadow = "none" | "soft" | "strong"
+export type SlideTransition = "none" | "fade"
 
 export interface PresentationSettings {
   alignment: SlideAlignment
@@ -38,12 +41,37 @@ export interface PresentationSettings {
   // uses the automatic color derived from the background (light on imagery,
   // a muted tone of the text color otherwise).
   referenceColor?: string
+  // Custom color for the scripture/lyric/note body. Empty keeps the automatic
+  // color (white on imagery, contrast-picked on solid colors).
+  textColor: string
+  // Unitless line height for body text.
+  lineHeight: number
+  // A shadow behind the text, mostly for legibility over busy imagery.
+  textShadow: TextShadow
+  // Where the text block sits vertically inside the safe area.
+  verticalPosition: VerticalPosition
+  referenceItalic: boolean
+  showReference: boolean
+  // Appends the translation, e.g. "John 3:16 (KJV)".
+  showVersion: boolean
+  // Blur radius in px on the 1920×1080 canvas, applied to image and video
+  // backgrounds only (a solid color has nothing to blur).
+  backgroundBlur: number
+  // Black overlay opacity (0–100) over image and video backgrounds.
+  backgroundDim: number
+  // How a new slide appears on the projector. Operator panels always cut.
+  transition: SlideTransition
+  transitionMs: number
 }
 
 // Bounds keep the text area from ever collapsing, whatever the user drags to.
 export const MARGIN_X_BOUNDS = { min: 0, max: 480, step: 4 }
 export const MARGIN_Y_BOUNDS = { min: 0, max: 360, step: 4 }
 export const FONT_SCALE_BOUNDS = { min: 0.6, max: 1.6, step: 0.05 }
+export const LINE_HEIGHT_BOUNDS = { min: 1.1, max: 2.2, step: 0.05 }
+export const BACKGROUND_BLUR_BOUNDS = { min: 0, max: 40, step: 1 }
+export const BACKGROUND_DIM_BOUNDS = { min: 0, max: 80, step: 5 }
+export const TRANSITION_MS_BOUNDS = { min: 100, max: 1500, step: 50 }
 
 // Defaults reproduce the look the slides had before these settings existed:
 // centered, serif, normal case, regular body weight, bold reference. The
@@ -60,6 +88,17 @@ export const DEFAULT_PRESENTATION: PresentationSettings = {
   fontScale: 1,
   referencePosition: "below",
   referenceFontFamily: "",
+  textColor: "",
+  lineHeight: 1.625,
+  textShadow: "none",
+  verticalPosition: "center",
+  referenceItalic: true,
+  showReference: true,
+  showVersion: true,
+  backgroundBlur: 0,
+  backgroundDim: 0,
+  transition: "none",
+  transitionMs: 400,
 }
 
 export function clampFontScale(value: number): number {
@@ -83,6 +122,19 @@ export const REFERENCE_WEIGHT_VALUE: Record<ReferenceWeight, number> = {
   regular: 400,
   semibold: 600,
   bold: 700,
+}
+
+export const VERTICAL_POSITION_CSS: Record<VerticalPosition, "flex-start" | "center" | "flex-end"> = {
+  top: "flex-start",
+  center: "center",
+  bottom: "flex-end",
+}
+
+// Shadows are in canvas px, so they scale with the slide like everything else.
+export const TEXT_SHADOW_CSS: Record<TextShadow, string | undefined> = {
+  none: undefined,
+  soft: "0 4px 24px rgba(0, 0, 0, 0.45)",
+  strong: "0 3px 6px rgba(0, 0, 0, 0.85), 0 0 40px rgba(0, 0, 0, 0.6)",
 }
 
 export const ALIGNMENT_CSS: Record<

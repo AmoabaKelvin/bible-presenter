@@ -168,6 +168,13 @@
   }
 }
 
+/* Projector slide transition (see Settings → Transition). */
+@keyframes slide-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Notes WYSIWYG editor (Tiptap) */
 .tiptap:focus {
   outline: none;

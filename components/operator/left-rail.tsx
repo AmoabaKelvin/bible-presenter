@@ -1,6 +1,6 @@
 "use client"
 
-import { Book, FileText, Music, Image as ImageIcon, BookA, Layers } from "lucide-react"
+import { Book, FileText, Music, Image as ImageIcon, BookA, Layers, Settings } from "lucide-react"
 import { ThemeToggle } from "./theme-toggle"
 import { QueuePane } from "./queue-pane"
 import { RecentSection } from "./recent-section"
@@ -25,6 +25,7 @@ interface LeftRailProps {
   onQueueNext: () => void
   onClearQueue: () => void
   onOpenShows: () => void
+  onOpenSettings: () => void
 }
 
 const MODES: { id: Mode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -52,6 +53,7 @@ export function LeftRail({
   onQueueNext,
   onClearQueue,
   onOpenShows,
+  onOpenSettings,
 }: LeftRailProps) {
   return (
     <aside className="w-[320px] shrink-0 h-full border-r border-border bg-card/30 flex flex-col">
@@ -91,6 +93,14 @@ export function LeftRail({
           >
             <Layers className="size-4" />
             <span>Shows</span>
+          </button>
+          <button
+            onClick={onOpenSettings}
+            className="w-full flex items-center gap-2.5 px-2.5 h-9 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          >
+            <Settings className="size-4" />
+            <span>Settings</span>
+            <kbd className="ml-auto font-mono text-[10.5px] text-muted-foreground/70">⌘,</kbd>
           </button>
         </div>
       </nav>
