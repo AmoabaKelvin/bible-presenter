@@ -86,6 +86,8 @@ export function SlideLivePanel({
           backgroundColor={backgroundColor}
           backgroundImage={backgroundImage}
           backgroundKind={backgroundKind ?? undefined}
+          backgroundBlur={presentation.backgroundBlur}
+          backgroundDim={presentation.backgroundDim}
           mediaUrl={mediaUrl}
           mediaKind={mediaKind}
           className="w-full h-full"

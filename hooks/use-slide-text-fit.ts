@@ -25,6 +25,9 @@ interface UseSlideTextFitOptions {
   // Width of the safe area. Re-fitting on width changes keeps the text filling
   // the slide after the horizontal margin (and thus line wrapping) changes.
   availableWidth: number
+  // Opaque key for typography that changes the text's height at a given size
+  // (font, weight, line height…). A change warm-starts a re-fit.
+  layoutKey?: string
   innerRef?: Ref<HTMLDivElement>
 }
 
@@ -39,6 +42,7 @@ export function useSlideTextFit({
   fontSize,
   availableHeight,
   availableWidth,
+  layoutKey = "",
   innerRef,
 }: UseSlideTextFitOptions) {
   const measureRef = useRef<HTMLDivElement | null>(null)
@@ -49,7 +53,12 @@ export function useSlideTextFit({
   // (new-verses) fits; warm re-fits stay visible.
   const blankRef = useRef(true)
   const prevVersesRef = useRef(verses)
-  const prevAreaRef = useRef<{ h: number; w: number; fontSize: FontSize } | null>(null)
+  const prevAreaRef = useRef<{
+    h: number
+    w: number
+    fontSize: FontSize
+    layoutKey: string
+  } | null>(null)
 
   const targetHeight = availableHeight * FILL[fontSize]
 
@@ -65,10 +74,11 @@ export function useSlideTextFit({
       !prevArea ||
       prevArea.h !== availableHeight ||
       prevArea.w !== availableWidth ||
-      prevArea.fontSize !== fontSize
+      prevArea.fontSize !== fontSize ||
+      prevArea.layoutKey !== layoutKey
 
     prevVersesRef.current = verses
-    prevAreaRef.current = { h: availableHeight, w: availableWidth, fontSize }
+    prevAreaRef.current = { h: availableHeight, w: availableWidth, fontSize, layoutKey }
 
     if (versesChanged || prevArea === null) {
       blankRef.current = true
@@ -80,7 +90,7 @@ export function useSlideTextFit({
       iterRef.current = 0
       setSettled(false)
     }
-  }, [verses, availableHeight, availableWidth, fontSize])
+  }, [verses, availableHeight, availableWidth, fontSize, layoutKey])
 
   useLayoutEffect(() => {
     if (settled) return
