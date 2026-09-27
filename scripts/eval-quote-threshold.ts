@@ -8,7 +8,8 @@ import { readFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { pipeline } from "@huggingface/transformers"
-import { pickQuote, stripLeadIn, type VerseIndex } from "@/lib/voice-quote"
+import type { VerseIndex } from "@/lib/semantic-search"
+import { pickQuote, stripLeadIn } from "@/lib/voice-quote"
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "bibles", "embeddings")
 const meta = JSON.parse(await readFile(join(dir, "meta.json"), "utf8"))

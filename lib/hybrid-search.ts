@@ -1,10 +1,11 @@
 // Fusion logic for unified scripture search.
 //
 // Lexical search (exact/fuzzy, against the active version) and semantic search
-// (meaning, against the bundled BSB embeddings) run as two independent ranked
-// lists. Semantic is the trustworthy "find by meaning" signal, so it leads:
-// the top semantic matches are placed first, then the remainder of both lists
-// is blended with Reciprocal Rank Fusion. This keeps a loose lexical/fuzzy hit
+// (meaning, against the BSB/KJV/NIV embeddings) run as two independent ranked
+// lists. A verse containing the query word for word leads; after that
+// semantic is the trustworthy "find by meaning" signal, so the top semantic
+// matches come next, then the remainder of both lists is blended with
+// Reciprocal Rank Fusion. This keeps a loose lexical/fuzzy hit
 // (e.g. "fourth" fuzzily matching "forth") from outranking the verse the model
 // actually identified, while still surfacing exact and fuzzy matches below.
 //
@@ -27,12 +28,26 @@ function refKey(reference: string): string {
   return reference.trim().toLowerCase()
 }
 
+function words(text: string): string {
+  return ` ${text.replace(/<[^>]+>/g, "").toLowerCase().replace(/[^a-z0-9']+/g, " ").trim()} `
+}
+
+// Verses quoting the whole query word for word ("he gave gifts unto men"). A
+// few words of a verse don't carry its meaning, so semantic can bury these.
+const MIN_EXACT_WORDS = 3
+function exactMatches(lexical: ScriptureSearchResult[], query: string): ScriptureSearchResult[] {
+  const phrase = words(query)
+  if (phrase.trim().split(" ").length < MIN_EXACT_WORDS) return []
+  return lexical.filter((r) => words(r.text).includes(phrase))
+}
+
 // Semantic-led fusion: the strongest meaning matches lead, then everything
 // else is blended by Reciprocal Rank Fusion (a verse both methods rank highly
 // rises within the blended tail). Deduped by reference.
 export function fuse(
   lexical: ScriptureSearchResult[],
   semantic: ScriptureSearchResult[],
+  query: string,
 ): ScriptureSearchResult[] {
   const pick = new Map<string, ScriptureSearchResult>()
   semantic.forEach((r) => {
@@ -44,10 +59,10 @@ export function fuse(
     if (!pick.has(k)) pick.set(k, r) // only used when semantic missed this verse
   })
 
-  // Reserve the leading slots for the top semantic matches.
+  // Reserve the leading slots for exact quotes, then the top semantic matches.
   const leadKeys: string[] = []
   const reserved = new Set<string>()
-  for (const r of semantic.slice(0, SEMANTIC_LEAD)) {
+  for (const r of [...exactMatches(lexical, query), ...semantic.slice(0, SEMANTIC_LEAD)]) {
     const k = refKey(r.reference)
     if (!reserved.has(k)) {
       reserved.add(k)

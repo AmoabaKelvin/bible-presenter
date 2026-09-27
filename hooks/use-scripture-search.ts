@@ -90,7 +90,7 @@ export function useScriptureSearch(
         setEnriching(true)
       }
 
-      // Phase 2 — semantic (meaning), against the BSB embeddings. Slower; on
+      // Phase 2 — semantic (meaning), against the BSB/KJV/NIV embeddings. Slower; on
       // first use it also downloads the model. Folds in and re-ranks. It must
       // never break search, so failures just leave the exact results standing.
       try {
@@ -99,7 +99,7 @@ export function useScriptureSearch(
           offset: 0,
         })
         if (aborted()) return
-        const merged = fuse(lexical, sem.results)
+        const merged = fuse(lexical, sem.results, q)
         // Semantic hits arrive in BSB; rewrite every result into the active
         // version so what's previewed and projected always matches the
         // operator's translation.

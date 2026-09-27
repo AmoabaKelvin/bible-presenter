@@ -86,9 +86,9 @@ const SHORTCUTS: { keys: string[]; action: string }[] = [
   { keys: ["←", "→"], action: "Previous or next item in the queue" },
   { keys: ["↑", "↓"], action: "Previous or next verse in the reader" },
   { keys: ["[", "]"], action: "Previous or next chapter" },
-  { keys: ["/"], action: "Jump to a reference" },
+  { keys: ["/"], action: "Jump to a reference, from any page" },
   { keys: ["?"], action: "Change translation" },
-  { keys: ["⌘", "K"], action: "Search scripture and the dictionary" },
+  { keys: ["⌘", "K"], action: "Jump to a reference, or search scripture and the dictionary" },
   { keys: ["⌘", ","], action: "Open settings" },
   { keys: ["F"], action: "Toggle fullscreen in the projector window" },
 ]
