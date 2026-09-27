@@ -15,7 +15,9 @@ import {
 } from "@/components/ui/command"
 import { useDictionaryLookup } from "@/hooks/use-dictionary-lookup"
 import { useScriptureSearch } from "@/hooks/use-scripture-search"
+import { parseFullScriptureReference, type ParsedScriptureReference } from "@/lib/scripture-reference"
 import type { ScriptureSearchResult } from "@/lib/scripture-search"
+import { resolveResultsToVersion } from "@/lib/version-text"
 import type { SelectedVerse } from "@/components/slide-stage"
 import {
   DictionaryResults,
@@ -25,6 +27,8 @@ import { PaletteKbd, PaletteModeTabs, type PaletteMode } from "./command-palette
 
 interface CommandPaletteProps {
   version: string
+  // "/" opens the palette too, for pages without their own reference box.
+  openOnSlash: boolean
   onPreview: (result: ScriptureSearchResult) => void
   onProject: (result: ScriptureSearchResult) => void
   onQueue: (result: ScriptureSearchResult) => void
@@ -34,8 +38,33 @@ interface CommandPaletteProps {
   onDefineQueue: (v: SelectedVerse) => void
 }
 
+// A typed reference ("matt 3:1") as a single result, with its text in the
+// active version once the chapter loads. A bare chapter lands on verse 1.
+function useReferenceJump(
+  parsed: ParsedScriptureReference | null,
+  version: string,
+): ScriptureSearchResult | null {
+  const reference = parsed ? `${parsed.book.name} ${parsed.chapter}:${parsed.verse ?? 1}` : null
+  const [text, setText] = useState<{ reference: string; text: string } | null>(null)
+
+  useEffect(() => {
+    if (!reference) return
+    const controller = new AbortController()
+    resolveResultsToVersion([{ reference, text: "" }], version, "", controller.signal).then(
+      ([resolved]) => {
+        if (!controller.signal.aborted) setText({ reference, text: resolved?.text ?? "" })
+      },
+    )
+    return () => controller.abort()
+  }, [reference, version])
+
+  if (!reference) return null
+  return { reference, text: text?.reference === reference ? text.text : "" }
+}
+
 export function CommandPalette({
   version,
+  openOnSlash,
   onPreview,
   onProject,
   onQueue,
@@ -48,8 +77,11 @@ export function CommandPalette({
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("scripture")
   const [query, setQuery] = useState("")
   const isDict = paletteMode === "dictionary"
+  // A reference goes straight to the verse instead of searching for it.
+  const jumpTarget = isDict ? null : parseFullScriptureReference(query)
+  const jump = useReferenceJump(jumpTarget, version)
   const { results, total, loading, enriching, error, hasMore, loadMore, activeQuery } =
-    useScriptureSearch(isDict ? "" : query, version)
+    useScriptureSearch(isDict || jumpTarget ? "" : query, version)
   const {
     entries: definitionEntries,
     rows: definitionRows,
@@ -76,6 +108,20 @@ export function CommandPalette({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [])
+
+  useEffect(() => {
+    if (!openOnSlash) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey) return
+      const target = e.target as HTMLElement | null
+      if (target && (/^(INPUT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable)) return
+      e.preventDefault()
+      setPaletteMode("scripture")
+      setOpen(true)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [openOnSlash])
 
   // Clear the query when the palette closes so it opens fresh.
   useEffect(() => {
@@ -112,14 +158,16 @@ export function CommandPalette({
             placeholder={
               isDict
                 ? "Define a word — e.g. charity, Melchizedek…"
-                : "Search the Bible — a word, phrase, or topic…"
+                : "Go to a reference (John 3:16) or search a word, phrase, or topic…"
             }
           />
           <PaletteModeTabs value={paletteMode} onChange={setPaletteMode} />
           <CommandList className="max-h-[60vh]" onScroll={handleScroll}>
             {showHint && (
               <div className="py-10 text-center text-sm text-muted-foreground">
-                Type at least 2 characters to {isDict ? "define" : "search"}.
+                {isDict
+                  ? "Type at least 2 characters to define."
+                  : "Type a reference like John 3:16, or at least 2 characters to search."}
               </div>
             )}
             {showSearching && (
@@ -148,10 +196,21 @@ export function CommandPalette({
                 onClose={close}
               />
             )}
-            {!isDict && (
+            {jump && (
+              <ScriptureResults
+                results={[jump]}
+                heading="Go to"
+                onPreview={onPreview}
+                onProject={onProject}
+                onQueue={onQueue}
+                onNavigate={onNavigate}
+                onClose={close}
+              />
+            )}
+            {!isDict && !jump && (
               <ScriptureResults
                 results={results}
-                total={total}
+                heading={`Scripture · ${total} ${total === 1 ? "result" : "results"}`}
                 onPreview={onPreview}
                 onProject={onProject}
                 onQueue={onQueue}

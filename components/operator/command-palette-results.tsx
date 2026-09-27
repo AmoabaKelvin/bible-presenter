@@ -84,7 +84,7 @@ export function DictionaryResults({
 
 interface ScriptureResultsProps {
   results: ScriptureSearchResult[]
-  total: number
+  heading: string
   onPreview: (result: ScriptureSearchResult) => void
   onProject: (result: ScriptureSearchResult) => void
   onQueue: (result: ScriptureSearchResult) => void
@@ -94,7 +94,7 @@ interface ScriptureResultsProps {
 
 export function ScriptureResults({
   results,
-  total,
+  heading,
   onPreview,
   onProject,
   onQueue,
@@ -103,7 +103,7 @@ export function ScriptureResults({
 }: ScriptureResultsProps) {
   if (results.length === 0) return null
   return (
-    <CommandGroup heading={`Scripture · ${total} ${total === 1 ? "result" : "results"}`}>
+    <CommandGroup heading={heading}>
       {results.map((result, index) => (
         <CommandItem
           key={`${result.reference}-${index}`}
