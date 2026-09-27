@@ -6,14 +6,8 @@
 // ponytail: ~130 ms on the main thread per sentence (embed + search of ~80 MB
 // of vectors). Move into a worker if the UI stutters while someone talks.
 
-export type PhraseIndex = { vectors: Int8Array; offsets: Uint32Array }
-export type VerseIndex = {
-  vectors: Int8Array
-  refs: string[]
-  // Clause windows of this translation's long verses, grouped by verse:
-  // rows offsets[i] until offsets[i + 1] belong to verse i.
-  phrases?: PhraseIndex
-}
+import { dotRow as dot, loadExtraIndexes, loadSemanticEngine, type VerseIndex } from "@/lib/semantic-search"
+
 export type QuoteMatch = { reference: string; score: number; margin: number; viaPhrase: boolean }
 
 // Everything up to and including the last of these is preamble, not quote.
@@ -46,13 +40,6 @@ const SAME_PASSAGE_COSINE = 0.8
 export function stripLeadIn(text: string): { quote: string; hadLeadIn: boolean } {
   const quote = text.replace(LEAD_IN, "").trim()
   return { quote, hadLeadIn: quote.length !== text.trim().length }
-}
-
-function dot(query: Float32Array, vectors: Int8Array, row: number): number {
-  const dim = query.length
-  let sum = 0
-  for (let d = 0, base = row * dim; d < dim; d++) sum += query[d] * vectors[base + d]
-  return sum / 127
 }
 
 type Candidate = { reference: string; index: VerseIndex; row: number; whole: number; phrase: number }
@@ -124,75 +111,15 @@ export function pickQuote(query: Float32Array, indexes: VerseIndex[], hadLeadIn:
   )
 }
 
-// Translations preachers quote from, beyond the BSB index the app already
-// loads for Cmd+K. Fetched once, on the first quote. Only KJV ships clause
-// windows; see scripts/build-embeddings.mjs for why.
-const QUOTED_VERSIONS = ["kjv", "niv"]
-let extraIndexes: Promise<VerseIndex[]> | null = null
-
-// Offline, a missing file rejects instead of returning 404, and an
-// unhandled rejection here used to drop a whole translation silently.
-const file = async (name: string) => {
-  try {
-    const res = await fetch(`/bibles/embeddings/${name}`)
-    return res.ok ? res : null
-  } catch {
-    return null
-  }
-}
-
-// A blob over Cloudflare's 25 MiB asset cap ships as .part0, .part1 …
-// (scripts/build-embeddings.mjs). Whole file first, parts if it isn't there.
-async function fetchVectors(name: string): Promise<Int8Array | null> {
-  const whole = await file(name)
-  if (whole) return new Int8Array(await whole.arrayBuffer())
-  const parts: ArrayBuffer[] = []
-  for (let part = 0; ; part++) {
-    const res = await file(`${name}.part${part}`)
-    if (!res) break
-    parts.push(await res.arrayBuffer())
-  }
-  if (parts.length === 0) return null
-  const vectors = new Int8Array(parts.reduce((total, part) => total + part.byteLength, 0))
-  let at = 0
-  for (const part of parts) {
-    vectors.set(new Int8Array(part), at)
-    at += part.byteLength
-  }
-  return vectors
-}
-
-async function fetchIndex(version: string): Promise<VerseIndex | null> {
-  const [vectors, refs] = await Promise.all([fetchVectors(`${version}.bin`), file(`${version}.refs.json`)])
-  if (!vectors || !refs) return null
-  const index: VerseIndex = { vectors, refs: await refs.json() }
-  const [phraseVectors, phraseIdx] = await Promise.all([
-    fetchVectors(`${version}.phrases.bin`),
-    file(`${version}.phrases.idx`),
-  ])
-  if (phraseVectors && phraseIdx) {
-    index.phrases = { vectors: phraseVectors, offsets: new Uint32Array(await phraseIdx.arrayBuffer()) }
-  }
-  return index
-}
-
 // Pull the indexes down while the mic is being switched on, so the first quote
 // is instant and a service that starts offline still has them.
 export function warmQuoteIndexes() {
   void loadExtraIndexes()
 }
 
-function loadExtraIndexes(): Promise<VerseIndex[]> {
-  extraIndexes ??= Promise.all(QUOTED_VERSIONS.map((v) => fetchIndex(v).catch(() => null))).then(
-    (loaded) => loaded.filter((index): index is VerseIndex => index !== null),
-  )
-  return extraIndexes
-}
-
 export async function matchQuote(text: string): Promise<QuoteMatch | null> {
   const { quote, hadLeadIn } = stripLeadIn(text)
   if (quote.split(/\s+/).length < MIN_WORDS) return null
-  const { loadSemanticEngine } = await import("@/lib/semantic-search")
   const [engine, extra] = await Promise.all([loadSemanticEngine(), loadExtraIndexes()])
   if (!engine) return null
   return pickQuote(await engine.embed(quote), [engine, ...extra], hadLeadIn)
