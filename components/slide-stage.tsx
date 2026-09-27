@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, type Ref } from "react"
+import { type CSSProperties, type ReactNode, type Ref } from "react"
 import ReactMarkdown from "react-markdown"
 import rehypeRaw from "rehype-raw"
 import { useSlideScale } from "@/hooks/use-slide-scale"
@@ -11,6 +11,8 @@ import {
   MARGIN_Y_BOUNDS,
   REFERENCE_WEIGHT_VALUE,
   SCRIPTURE_WEIGHT_VALUE,
+  TEXT_SHADOW_CSS,
+  VERTICAL_POSITION_CSS,
   clampFontScale,
   clampMargin,
   fontFamilyCss,
@@ -53,10 +55,25 @@ function getReferenceColorHex(bgColor: string) {
   return luminance > 0.5 ? "#4b5563" : "#9ca3af"
 }
 
+// Whether a custom text color is light, so Markdown notes can switch to the
+// inverted prose palette. Non-hex colors are treated as light.
+function isLightColor(color: string) {
+  const hex = color.trim().replace("#", "")
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return true
+  const r = parseInt(hex.substring(0, 2), 16)
+  const g = parseInt(hex.substring(2, 4), 16)
+  const b = parseInt(hex.substring(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5
+}
+
 interface SlideStageProps {
   backgroundColor: string
   backgroundImage?: string | null
   backgroundKind?: "image" | "video"
+  // Blur radius in canvas px and dim overlay opacity (0–100), both applied to
+  // image/video backgrounds only.
+  backgroundBlur?: number
+  backgroundDim?: number
   mediaUrl?: string | null
   mediaKind?: "image" | "video"
   className?: string
@@ -67,6 +84,8 @@ export function SlideStage({
   backgroundColor,
   backgroundImage,
   backgroundKind = "image",
+  backgroundBlur = 0,
+  backgroundDim = 0,
   mediaUrl,
   mediaKind = "image",
   className = "",
@@ -74,35 +93,63 @@ export function SlideStage({
 }: SlideStageProps) {
   const { wrapperRef, scale } = useSlideScale(SLIDE_WIDTH, SLIDE_HEIGHT)
   const isVideo = backgroundKind === "video" && !!backgroundImage
+  // The blur is authored on the 1920×1080 canvas; convert to screen px so the
+  // small operator previews look like the projector.
+  const blurPx = backgroundImage ? backgroundBlur * scale : 0
+  const dim = backgroundImage ? backgroundDim / 100 : 0
 
   return (
     <div
       ref={wrapperRef}
       className={`relative overflow-hidden ${className}`}
-      style={{
-        backgroundColor,
-        backgroundImage: backgroundImage && !isVideo ? `url(${backgroundImage})` : undefined,
-        backgroundSize: "cover",
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "center",
-      }}
+      style={{ backgroundColor }}
     >
-      {isVideo && (
-        <video
-          src={backgroundImage ?? undefined}
-          autoPlay
-          loop
-          muted
-          playsInline
+      {backgroundImage && (
+        // Bleed the layer past the edges while blurred so the soft edge of the
+        // blur never shows the background color through.
+        <div
+          aria-hidden
           style={{
             position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
+            inset: blurPx > 0 ? -blurPx * 2 : 0,
+            filter: blurPx > 0 ? `blur(${blurPx}px)` : undefined,
             pointerEvents: "none",
           }}
+        >
+          {isVideo ? (
+            <video
+              src={backgroundImage}
+              autoPlay
+              loop
+              muted
+              playsInline
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                objectPosition: "center",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: `url(${backgroundImage})`,
+                backgroundSize: "cover",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "center",
+              }}
+            />
+          )}
+        </div>
+      )}
+      {dim > 0 && (
+        <div
+          aria-hidden
+          style={{ position: "absolute", inset: 0, backgroundColor: `rgba(0, 0, 0, ${dim})`, pointerEvents: "none" }}
         />
       )}
       <div
@@ -191,10 +238,33 @@ export function SlideContent({
   innerRef,
   presentation,
 }: SlideContentProps) {
-  const textColor = backgroundImage ? "#ffffff" : getTextColorHex(backgroundColor)
-  const proseInvert = textColor === "#ffffff"
-
   const style = mergePresentation(presentation)
+  const customTextColor = style.textColor.trim()
+  const textColor =
+    customTextColor || (backgroundImage ? "#ffffff" : getTextColorHex(backgroundColor))
+  const proseInvert = customTextColor ? isLightColor(customTextColor) : textColor === "#ffffff"
+  // Notes render through `prose`, which sets its own colors; point them all at
+  // the custom color so the whole note follows it.
+  const proseColorVars = customTextColor
+    ? ({
+        "--tw-prose-body": customTextColor,
+        "--tw-prose-headings": customTextColor,
+        "--tw-prose-bold": customTextColor,
+        "--tw-prose-links": customTextColor,
+        "--tw-prose-bullets": customTextColor,
+        "--tw-prose-counters": customTextColor,
+        "--tw-prose-quotes": customTextColor,
+        "--tw-prose-invert-body": customTextColor,
+        "--tw-prose-invert-headings": customTextColor,
+        "--tw-prose-invert-bold": customTextColor,
+        "--tw-prose-invert-links": customTextColor,
+        "--tw-prose-invert-bullets": customTextColor,
+        "--tw-prose-invert-counters": customTextColor,
+        "--tw-prose-invert-quotes": customTextColor,
+      } as CSSProperties)
+    : undefined
+  const { lineHeight, showReference } = style
+  const textShadow = TEXT_SHADOW_CSS[style.textShadow]
   // A custom reference color overrides the automatic one; empty/unset keeps the
   // light-on-image / themed color derived from the background.
   const referenceColor = style.referenceColor?.trim()
@@ -229,6 +299,20 @@ export function SlideContent({
   // scaled-up lines wrap to exactly contentMaxWidth.
   const fitWidth = contentMaxWidth / upscale
 
+  // Anything that changes the rendered height of the text without changing the
+  // area must trigger a re-fit, or the slide keeps sizes fitted for the old look.
+  const layoutKey = [
+    style.fontFamily,
+    style.referenceFontFamily,
+    style.scriptureWeight,
+    style.referenceWeight,
+    style.textCase,
+    lineHeight,
+    showReference,
+    style.showVersion,
+    referenceFontScale,
+  ].join("|")
+
   const {
     measuring,
     setRefs,
@@ -243,6 +327,7 @@ export function SlideContent({
     fontSize,
     availableHeight,
     availableWidth: fitWidth,
+    layoutKey,
     innerRef,
   })
 
@@ -258,10 +343,12 @@ export function SlideContent({
 
   return (
     <div
-      className="absolute inset-0 flex items-center"
+      className="absolute inset-0 flex"
       style={{
         padding: `${marginY}px ${marginX}px`,
         color: textColor,
+        textShadow,
+        alignItems: VERTICAL_POSITION_CSS[style.verticalPosition],
         justifyContent: align.justifyContent,
         visibility: measuring ? "hidden" : "visible",
       }}
@@ -291,9 +378,10 @@ export function SlideContent({
               // Lyrics: plain lines, breaks preserved, no reference line.
               <p
                 data-verse-text
-                className="leading-relaxed font-serif"
+                className="font-serif"
                 style={{
                   whiteSpace: "pre-line",
+                  lineHeight,
                   fontSize: verseFs,
                   fontFamily,
                   fontWeight: scriptureWeight,
@@ -320,8 +408,10 @@ export function SlideContent({
                 )}
                 <div
                   data-verse-text
-                  className={`leading-relaxed font-serif prose max-w-none prose-ol:list-inside prose-ul:list-inside prose-ol:pl-0 prose-ul:pl-0 ${proseInvert ? "prose-invert" : ""}`}
+                  className={`font-serif prose max-w-none prose-ol:list-inside prose-ul:list-inside prose-ol:pl-0 prose-ul:pl-0 ${proseInvert ? "prose-invert" : ""}`}
                   style={{
+                    ...proseColorVars,
+                    lineHeight,
                     fontSize: verseFs,
                     fontFamily,
                     fontWeight: scriptureWeight,
@@ -333,10 +423,10 @@ export function SlideContent({
               </>
             ) : (
               <>
-                {v.reference && referenceAbove && (
+                {v.reference && showReference && referenceAbove && (
                   <p
-                    className="italic"
                     style={{
+                      fontStyle: style.referenceItalic ? "italic" : undefined,
                       marginBottom: refMt,
                       fontSize: refFs,
                       fontFamily: referenceFontFamily,
@@ -345,15 +435,18 @@ export function SlideContent({
                       lineHeight: 1.3,
                     }}
                   >
-                    {v.reference} ({v.version || defaultVersion})
+                    {style.showVersion
+                      ? `${v.reference} (${v.version || defaultVersion})`
+                      : v.reference}
                   </p>
                 )}
                 <p
                   data-verse-text
-                  className={`leading-relaxed font-serif ${
+                  className={`font-serif ${
                     v.reference ? "text-balance" : "whitespace-pre-wrap"
                   }`}
                   style={{
+                    lineHeight,
                     fontSize: verseFs,
                     fontFamily,
                     fontWeight: scriptureWeight,
@@ -361,10 +454,10 @@ export function SlideContent({
                   }}
                   dangerouslySetInnerHTML={{ __html: v.text }}
                 />
-                {v.reference && !referenceAbove && (
+                {v.reference && showReference && !referenceAbove && (
                   <p
-                    className="italic"
                     style={{
+                      fontStyle: style.referenceItalic ? "italic" : undefined,
                       marginTop: refMt,
                       fontSize: refFs,
                       fontFamily: referenceFontFamily,
@@ -373,7 +466,9 @@ export function SlideContent({
                       lineHeight: 1.3,
                     }}
                   >
-                    {v.reference} ({v.version || defaultVersion})
+                    {style.showVersion
+                      ? `${v.reference} (${v.version || defaultVersion})`
+                      : v.reference}
                   </p>
                 )}
               </>

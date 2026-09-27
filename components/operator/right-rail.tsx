@@ -5,7 +5,9 @@ import { BackgroundPopover, type ResolvedTargets } from "./background-popover"
 import { MusicPane } from "./music-pane"
 import { SlideLivePanel } from "./slide-live-panel"
 import { SlidePreviewPanel } from "./slide-preview-panel"
-import { PresentationSettingsDialog } from "./presentation-settings-dialog"
+import { Settings2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { PresentationSettings } from "@/lib/presentation-settings"
 import type { BackgroundTarget } from "@/lib/background-config"
 import type { ResolvedBackground } from "@/hooks/use-operator-background"
@@ -26,13 +28,12 @@ interface RightRailProps {
   fontSize: FontSize
   onFontSizeChange: (s: FontSize) => void
   presentation: PresentationSettings
-  onPresentationChange: (s: PresentationSettings) => void
+  onOpenSlideSettings: () => void
   version: string
   // Resolved backgrounds for each panel (by their first slide's kind) and the
   // per-type controls.
   previewBackground: ResolvedBackground
   liveBackground: ResolvedBackground
-  defaultBackground: ResolvedBackground
   backgroundTargets: ResolvedTargets
   onLayerColorChange: (target: BackgroundTarget, color: string) => void
   onUploadLayerImage: (target: BackgroundTarget, file: File) => void
@@ -94,11 +95,10 @@ export function RightRail({
   fontSize,
   onFontSizeChange,
   presentation,
-  onPresentationChange,
+  onOpenSlideSettings,
   version,
   previewBackground,
   liveBackground,
-  defaultBackground,
   backgroundTargets,
   onLayerColorChange,
   onUploadLayerImage,
@@ -134,10 +134,6 @@ export function RightRail({
   onMusicVolume,
   onMusicStop,
 }: RightRailProps) {
-  // The settings-dialog preview renders a sample scripture verse, so it shows
-  // the default layer. Fall back to a neutral color until persistence loads.
-  const settingsBgColor = themeLoaded ? defaultBackground.color : "#0a0a0a"
-
   return (
     <aside className="w-[500px] shrink-0 h-full border-l border-border bg-card/30 flex flex-col overflow-hidden">
       {/* Slide presentation settings */}
@@ -170,14 +166,20 @@ export function RightRail({
             onResetLayer={onResetLayer}
             onResetAll={onResetAllBackgrounds}
           />
-          <PresentationSettingsDialog
-            settings={presentation}
-            onChange={onPresentationChange}
-            backgroundColor={settingsBgColor}
-            backgroundImage={defaultBackground.url}
-            backgroundKind={defaultBackground.kind}
-            version={version}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={onOpenSlideSettings}
+                aria-label="Slide settings"
+              >
+                <Settings2 className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Slide settings (⌘,)</TooltipContent>
+          </Tooltip>
         </div>
       </div>
       {voiceStatus}

@@ -65,7 +65,15 @@ function ProgressRing({
   )
 }
 
-export function OfflineManager() {
+interface OfflineManagerProps {
+  className?: string
+  listClassName?: string
+}
+
+export function OfflineManager({
+  className = "w-[260px]",
+  listClassName = "max-h-[60vh] overflow-y-auto pr-1",
+}: OfflineManagerProps = {}) {
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set())
   const [progress, setProgress] = useState<Record<string, DownloadProgress>>({})
   const [online, setOnline] = useState(true)
@@ -125,7 +133,7 @@ export function OfflineManager() {
   }
 
   return (
-    <div className="flex flex-col w-[260px]">
+    <div className={`flex flex-col ${className}`}>
       <div className="flex items-center gap-2 px-1 pb-3 text-xs">
         {online ? (
           <>
@@ -140,7 +148,7 @@ export function OfflineManager() {
         )}
       </div>
 
-      <div className="max-h-[60vh] overflow-y-auto pr-1">
+      <div className={listClassName}>
         <ul className="space-y-1">
           {BIBLE_VERSIONS.map((v) => {
             const isDownloaded = downloaded.has(v.code)

@@ -12,6 +12,7 @@ import { MediaPane } from "@/components/operator/media-pane"
 import { DictionaryPane } from "@/components/operator/dictionary-pane"
 import { RightRail } from "@/components/operator/right-rail"
 import { VoiceButton, VoiceStatus } from "@/components/operator/voice-control"
+import { SettingsPage, type SettingsSectionId } from "@/components/settings/settings-page"
 import type { Mode } from "@/components/operator/types"
 import { useOperatorBible } from "@/hooks/use-operator-bible"
 import { useVoiceCommands } from "@/hooks/use-voice-commands"
@@ -55,6 +56,24 @@ export default function OperatorPage() {
   useWarmBundledBibles(version)
   useWarmSemanticIndex()
   const [showsOpen, setShowsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("text")
+  const openSettings = useCallback((section?: SettingsSectionId) => {
+    if (section) setSettingsSection(section)
+    setSettingsOpen(true)
+  }, [])
+
+  // Cmd/Ctrl+, opens settings.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "," && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setSettingsOpen(true)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
   const [bibleSearchQuery, setBibleSearchQuery] = useState("")
 
   const previewContentRef = useRef<HTMLDivElement>(null)
@@ -271,10 +290,9 @@ export default function OperatorPage() {
   )
 
   // Resolve each panel's background by its first slide's kind (default when
-  // empty or showing media). The popover/settings preview operate on default.
+  // empty or showing media).
   const previewBackground = background.resolveTarget(previewVerses[0]?.kind)
   const liveBackground = background.resolveTarget(liveVerses[0]?.kind)
-  const defaultBackground = background.resolveTarget(undefined)
 
   // Where voice jumped *from*, so "go back" can return there.
   const voiceBackStack = useRef<{ book: BibleBook; chapter: number; verse: number }[]>([])
@@ -359,6 +377,7 @@ export default function OperatorPage() {
         onQueueNext={queueNext}
         onClearQueue={clearQueue}
         onOpenShows={() => setShowsOpen(true)}
+        onOpenSettings={() => openSettings()}
       />
 
       <main className="flex-1 min-w-0 h-full overflow-hidden">
@@ -495,11 +514,10 @@ export default function OperatorPage() {
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
         presentation={presentation}
-        onPresentationChange={setPresentation}
+        onOpenSlideSettings={() => openSettings("text")}
         version={version}
         previewBackground={previewBackground}
         liveBackground={liveBackground}
-        defaultBackground={defaultBackground}
         backgroundTargets={background.resolvedTargets}
         onLayerColorChange={background.setLayerColor}
         onUploadLayerImage={background.uploadLayerImage}
@@ -548,6 +566,23 @@ export default function OperatorPage() {
         onDefinePreview={previewDefinition}
         onDefineProject={projectDefinition}
         onDefineQueue={queueDefinition}
+      />
+
+      <SettingsPage
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        section={settingsSection}
+        onSectionChange={setSettingsSection}
+        presentation={presentation}
+        onPresentationChange={setPresentation}
+        background={background.config}
+        onBackgroundChange={background.replaceConfig}
+        fontSize={fontSize}
+        onFontSizeChange={setFontSize}
+        version={version}
+        onVersionChange={setVersion}
+        voiceAutoProject={voiceAutoProject}
+        onVoiceAutoProjectChange={setVoiceAutoProject}
       />
 
       <ShowsLibrary
