@@ -556,6 +556,7 @@ export default function OperatorPage() {
 
       <CommandPalette
         version={version}
+        openOnSlash={mode !== "bible"}
         onPreview={previewSearchResult}
         onProject={projectSearchResult}
         onQueue={queueSearchResult}

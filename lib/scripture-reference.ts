@@ -29,17 +29,42 @@ export function allowsScriptureBookSpace(query: string) {
   )
 }
 
+// Short forms that don't prefix the full name ("jn" isn't the start of "John").
+// Anything that does ("matt", "1 cor", "ps") resolves by prefix below.
+const ABBREVIATIONS: Record<string, string> = {
+  jn: "john",
+  jhn: "john",
+  mt: "matthew",
+  mk: "mark",
+  lk: "luke",
+  jas: "james",
+}
+
+function findBook(guess: string): BibleBook | undefined {
+  const spaced = guess.replace(/^([1-3])\s*/, "$1 ").replace(/\.$/, "").trim()
+  const numbered = spaced.match(/^([1-3] )?(.*)$/)!
+  const name = `${numbered[1] ?? ""}${ABBREVIATIONS[numbered[2]] ?? numbered[2]}`
+  if (numbered[2].replace(/[^a-z]/g, "").length < 2) return undefined
+  return (
+    allBooks.find((candidate) => candidate.name.toLowerCase() === name) ??
+    allBooks.find((candidate) => candidate.name.toLowerCase().startsWith(name))
+  )
+}
+
+// "John 3:16", "jn 3.16", "matt 3 1", "1cor 13", "Psalm 23v4", "Jude 3". The
+// chapter and verse are clamped to what the book has.
 export function parseFullScriptureReference(raw: string): ParsedScriptureReference | null {
-  const trimmed = raw.trim()
-  const match = trimmed.match(/^([1-3]?\s?[A-Za-z .]+?)\s+(\d+)(?::(\d+))?$/)
+  const match = raw
+    .trim()
+    .toLowerCase()
+    .match(/^([1-3]?\s*[a-z][a-z .]*?)\s*(\d+)(?:\s*(?::|\.|v|\s)\s*(\d+))?$/)
   if (!match) return null
-  const bookGuess = match[1].trim().toLowerCase()
-  const chapterRequested = Number(match[2])
-  const verseRequested = match[3] ? Number(match[3]) : undefined
-  const book =
-    allBooks.find((candidate) => candidate.name.toLowerCase() === bookGuess) ||
-    allBooks.find((candidate) => candidate.name.toLowerCase().startsWith(bookGuess))
+  const book = findBook(match[1])
   if (!book) return null
+  // One-chapter books are cited by verse alone: "Jude 3", "3 John 4".
+  const verseOnly = book.chapters.length === 1 && !match[3]
+  const chapterRequested = verseOnly ? 1 : Number(match[2])
+  const verseRequested = verseOnly ? Number(match[2]) : match[3] ? Number(match[3]) : undefined
   const chapter = Math.min(Math.max(chapterRequested, 1), book.chapters.length)
   const verseCount = book.chapters[chapter - 1]
   const verse =

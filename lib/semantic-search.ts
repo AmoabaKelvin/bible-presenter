@@ -1,8 +1,9 @@
 // Client-side semantic ("find by meaning") scripture search.
 //
 // Loads a small sentence-embedding model (transformers.js) plus the int8
-// vector blob built by scripts/build-embeddings.mjs, embeds the query in the
-// browser, and ranks every BSB verse by cosine similarity. Returns the same
+// vector blobs built by scripts/build-embeddings.mjs, embeds the query in the
+// browser, and ranks verses by cosine similarity across the BSB, KJV and NIV
+// indexes — the same ones voice quote detection uses. Returns the same
 // { reference, text, highlight } shape as the lexical path so the existing
 // search UI is unchanged.
 //
@@ -21,16 +22,25 @@ type Meta = {
   queryPrefix: string
 }
 
-// Loaded once, reused across queries.
-type Engine = {
-  embed: (text: string) => Promise<Float32Array>
+export type PhraseIndex = { vectors: Int8Array; offsets: Uint32Array }
+export type VerseIndex = {
   vectors: Int8Array
   refs: string[]
-  texts: string[]
+  // Clause windows of this translation's long verses, grouped by verse:
+  // rows offsets[i] until offsets[i + 1] belong to verse i.
+  phrases?: PhraseIndex
+}
+
+// Loaded once, reused across queries. The engine is itself the BSB index.
+type Engine = VerseIndex & {
+  embed: (text: string) => Promise<Float32Array>
+  textByRef: Map<string, string>
   meta: Meta
 }
 
 const MAX_RANKED = 300
+// Verses taken from each translation before clause scoring and merging.
+const PER_INDEX_CANDIDATES = 100
 
 let enginePromise: Promise<Engine | null> | null = null
 
@@ -67,7 +77,6 @@ async function buildEngine(): Promise<Engine | null> {
         textByRef.set(`${book} ${chapter}:${v.number}`, v.text)
       }
     }
-    const texts = refs.map((r) => textByRef.get(r) ?? "")
 
     // transformers.js is heavy and browser-only — load it lazily.
     // "#transformers" maps to the real package in the browser and to a stub
@@ -122,7 +131,7 @@ async function buildEngine(): Promise<Engine | null> {
       return out.data as Float32Array
     }
 
-    return { embed, vectors, refs, texts, meta }
+    return { embed, vectors, refs, textByRef, meta }
   } catch (err) {
     console.warn("[semantic] failed to initialize", err)
     return null
@@ -157,6 +166,104 @@ function highlight(text: string, query: string): string {
   return text.replace(re, "<em>$1</em>")
 }
 
+// Translations preachers quote from, beyond BSB. Only KJV ships clause
+// windows; see scripts/build-embeddings.mjs for why.
+const EXTRA_VERSIONS = ["kjv", "niv"]
+let extraIndexes: Promise<VerseIndex[]> | null = null
+let loadedExtraIndexes: VerseIndex[] = []
+
+// Offline, a missing file rejects instead of returning 404, and an
+// unhandled rejection here used to drop a whole translation silently.
+const file = async (name: string) => {
+  try {
+    const res = await fetch(`/bibles/embeddings/${name}`)
+    return res.ok ? res : null
+  } catch {
+    return null
+  }
+}
+
+// A blob over Cloudflare's 25 MiB asset cap ships as .part0, .part1 …
+// (scripts/build-embeddings.mjs). Whole file first, parts if it isn't there.
+async function fetchVectors(name: string): Promise<Int8Array | null> {
+  const whole = await file(name)
+  if (whole) return new Int8Array(await whole.arrayBuffer())
+  const parts: ArrayBuffer[] = []
+  for (let part = 0; ; part++) {
+    const res = await file(`${name}.part${part}`)
+    if (!res) break
+    parts.push(await res.arrayBuffer())
+  }
+  if (parts.length === 0) return null
+  const vectors = new Int8Array(parts.reduce((total, part) => total + part.byteLength, 0))
+  let at = 0
+  for (const part of parts) {
+    vectors.set(new Int8Array(part), at)
+    at += part.byteLength
+  }
+  return vectors
+}
+
+async function fetchIndex(version: string): Promise<VerseIndex | null> {
+  const [vectors, refs] = await Promise.all([fetchVectors(`${version}.bin`), file(`${version}.refs.json`)])
+  if (!vectors || !refs) return null
+  const index: VerseIndex = { vectors, refs: await refs.json() }
+  const [phraseVectors, phraseIdx] = await Promise.all([
+    fetchVectors(`${version}.phrases.bin`),
+    file(`${version}.phrases.idx`),
+  ])
+  if (phraseVectors && phraseIdx) {
+    index.phrases = { vectors: phraseVectors, offsets: new Uint32Array(await phraseIdx.arrayBuffer()) }
+  }
+  return index
+}
+
+// The KJV and NIV indexes (~70 MB with KJV clause windows), fetched once.
+export function loadExtraIndexes(): Promise<VerseIndex[]> {
+  extraIndexes ??= Promise.all(EXTRA_VERSIONS.map((v) => fetchIndex(v).catch(() => null))).then(
+    (loaded) => {
+      loadedExtraIndexes = loaded.filter((index): index is VerseIndex => index !== null)
+      return loadedExtraIndexes
+    },
+  )
+  return extraIndexes
+}
+
+export function dotRow(query: Float32Array, vectors: Int8Array, row: number): number {
+  const dim = query.length
+  let sum = 0
+  for (let d = 0, base = row * dim; d < dim; d++) sum += query[d] * vectors[base + d]
+  return sum / 127
+}
+
+// Best match per verse across translations. Each index contributes its top
+// whole-verse candidates, and a candidate with clause windows also scores its
+// best clause, so a quoted fragment of a long verse still lands on it.
+// Measured on the voice + search eval set: top-1 went from 31/38 (BSB only)
+// to 34/38, mostly KJV wording ("charity suffereth long" #54 → #1).
+function rankVerses(query: Float32Array, indexes: VerseIndex[]): { reference: string; score: number }[] {
+  const best = new Map<string, number>()
+  const scores = new Float32Array(Math.max(...indexes.map((index) => index.refs.length)))
+  for (const index of indexes) {
+    for (let row = 0; row < index.refs.length; row++) scores[row] = dotRow(query, index.vectors, row)
+    for (const row of topKIndices(scores.subarray(0, index.refs.length), PER_INDEX_CANDIDATES)) {
+      let score = scores[row]
+      const phrases = index.phrases
+      if (phrases) {
+        for (let p = phrases.offsets[row]; p < phrases.offsets[row + 1]; p++) {
+          score = Math.max(score, dotRow(query, phrases.vectors, p))
+        }
+      }
+      const reference = index.refs[row]
+      if (score > (best.get(reference) ?? -Infinity)) best.set(reference, score)
+    }
+  }
+  return [...best]
+    .map(([reference, score]) => ({ reference, score }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_RANKED)
+}
+
 export async function semanticSearch(
   query: string,
   { limit = 25, offset = 0 }: { limit?: number; offset?: number },
@@ -164,35 +271,18 @@ export async function semanticSearch(
   const engine = await loadSemanticEngine()
   if (!engine) return { query, total: 0, limit, offset, results: [] }
 
-  const { embed, vectors, refs, texts, meta } = engine
-  const dim = meta.dim
-  const q = await embed(query)
-
-  // Cosine over unit-normalized query vs int8 verse vectors. The int8 scale
-  // (1/127) is a constant across rows, so we can rank on the raw dot product.
-  // Scores go into a typed array (no per-verse objects), and a fixed-size heap
-  // selects the top candidates without sorting all ~31k rows — this runs on
-  // every keystroke, so it stays off the allocator's back.
-  const scores = new Float32Array(meta.count)
-  for (let i = 0; i < meta.count; i++) {
-    const base = i * dim
-    let dot = 0
-    for (let d = 0; d < dim; d++) dot += q[d] * vectors[base + d]
-    scores[i] = dot
-  }
-
-  const top = topKIndices(scores, MAX_RANKED)
-  const page = top.slice(offset, offset + limit)
+  // KJV/NIV join as soon as they have downloaded; a search never waits on them.
+  void loadExtraIndexes()
+  const ranked = rankVerses(await engine.embed(query), [engine, ...loadedExtraIndexes])
   return {
     query,
-    total: top.length,
+    total: ranked.length,
     limit,
     offset,
-    results: page.map((i) => ({
-      reference: refs[i],
-      text: texts[i],
-      highlight: highlight(texts[i], query),
-    })),
+    results: ranked.slice(offset, offset + limit).map(({ reference }) => {
+      const text = engine.textByRef.get(reference) ?? ""
+      return { reference, text, highlight: highlight(text, query) }
+    }),
   }
 }
 
